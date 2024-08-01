@@ -35,6 +35,7 @@ func main() {
 
 			if err != nil {
 				log.Printf("[Error Receiving MOQT Message][%s]", err)
+				return
 			}
 
 			log.Printf("%s", msg.Print())

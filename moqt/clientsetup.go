@@ -3,6 +3,7 @@ package moqt
 import (
 	"bufio"
 	"fmt"
+	"moq-go/h3"
 	"strings"
 
 	"github.com/quic-go/quic-go/quicvarint"
@@ -16,6 +17,7 @@ type ClientSetup struct {
 func (setup *ClientSetup) GetBytes() []byte {
 	var data []byte
 
+	data = quicvarint.Append(data, CLIENT_SETUP)
 	nversions := uint64(len(setup.SelectedVersions))
 
 	data = quicvarint.Append(data, nversions)
@@ -36,7 +38,7 @@ func (setup *ClientSetup) GetBytes() []byte {
 	return data
 }
 
-func (setup *ClientSetup) Parse(r MOQTReader) error {
+func (setup *ClientSetup) Parse(r h3.MessageReader) error {
 
 	reader := bufio.NewReader(r)
 	var err error

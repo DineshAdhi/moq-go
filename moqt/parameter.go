@@ -1,38 +1,67 @@
 package moqt
 
 import (
-	"bufio"
+	"moq-go/h3"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
 const (
-	ROLE_PARAM = 0x00
-	PATH_PARAM = 0x01
+	ROLE_PARAM = uint64(0x00)
+	ROLE_PATH  = uint64(0x01)
+)
+
+const (
+	ROLE_PUBLISHER  = uint64(0x01)
+	ROLE_SUBSCRIBER = uint64(0x02)
+	ROLE_PUBSUB     = uint64(0x03)
 )
 
 type Parameter interface {
+	Parse(r h3.MessageReader) error
+	Type() uint64
+	Value() interface{}
 	GetBytes() []byte
-	Parse(r MOQTReader) error
 	String() string
 }
 
 type Parameters map[uint64]Parameter
 
-func GetParamKeyString(ptype uint64) string {
-	switch ptype {
+func GetParamKeyString(param Parameter) string {
+	switch param.Type() {
 	case ROLE_PARAM:
 		return "ROLE"
-	case PATH_PARAM:
+	case ROLE_PATH:
 		return "PATH"
 	default:
 		return "UNKNOWN PARAM"
 	}
 }
 
-func (params Parameters) Parse(r MOQTReader) error {
+func GetRoleString(param Parameter) string {
+	switch param.Value().(uint64) {
+	case ROLE_PUBLISHER:
+		return string("ROLE_PUBLISHER")
+	case ROLE_SUBSCRIBER:
+		return string("ROLE_PUBLISHER")
+	case ROLE_PUBSUB:
+		return string("ROLE_PUBLISHER")
+	default:
+		return string("UNKNOWN_ROLE")
+	}
+}
 
-	reader := bufio.NewReader(r)
+func GetParamValueString(param Parameter) string {
+	switch param.Type() {
+	case ROLE_PARAM:
+		return GetRoleString(param)
+	default:
+		return "UNKNOWN_VALUE"
+	}
+}
+
+func (params Parameters) Parse(reader h3.MessageReader) error {
+
 	length, err := quicvarint.Read(reader)
 
 	if err != nil {
@@ -48,17 +77,17 @@ func (params Parameters) Parse(r MOQTReader) error {
 
 		switch ptype {
 		case ROLE_PARAM:
-			intParam := IntParameter{ptype: ptype}
-			err := intParam.Parse(r)
+			intParam := &IntParameter{ptype: ptype}
+			err := intParam.Parse(reader)
 
 			if err != nil {
 				return err
 			}
 
 			params[ptype] = intParam
-		case PATH_PARAM:
-			strParam := StringParameter{ptype: ptype}
-			err := strParam.Parse(r)
+		case ROLE_PATH:
+			strParam := &StringParameter{ptype: ptype}
+			err := strParam.Parse(reader)
 
 			if err != nil {
 				return err
@@ -71,7 +100,8 @@ func (params Parameters) Parse(r MOQTReader) error {
 				return err
 			}
 
-			reader.Discard(int(len)) // Discarding unknown param
+			discardData := make([]byte, len)
+			reader.Read(discardData)
 		}
 	}
 

@@ -3,6 +3,7 @@ package moqt
 import (
 	"bufio"
 	"fmt"
+	"moq-go/h3"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -12,7 +13,15 @@ type StringParameter struct {
 	pvalue string
 }
 
-func (param StringParameter) Parse(r MOQTReader) error {
+func (param StringParameter) Type() uint64 {
+	return param.ptype
+}
+
+func (param StringParameter) Value() interface{} {
+	return param.pvalue
+}
+
+func (param *StringParameter) Parse(r h3.MessageReader) error {
 
 	reader := quicvarint.NewReader(r)
 	len, err := quicvarint.Read(reader)
@@ -43,5 +52,5 @@ func (param StringParameter) GetBytes() []byte {
 }
 
 func (param StringParameter) String() string {
-	return fmt.Sprintf("Key : %v, Value : %v", param.ptype, param.pvalue)
+	return fmt.Sprintf("Key : %v, Value : %v", GetParamKeyString(&param), param.pvalue)
 }

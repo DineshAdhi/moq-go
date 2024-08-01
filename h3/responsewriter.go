@@ -2,7 +2,6 @@ package h3
 
 import (
 	"bufio"
-	"bytes"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,29 +29,28 @@ func (w *ResponseWriter) Header() http.Header {
 }
 
 func (w *ResponseWriter) WriteHeader(status int) {
-	f := Frame{Type: FRAME_HEADERS}
+	hframe := HeaderFrame{}
 
-	var headers bytes.Buffer
-	encoder := qpack.NewEncoder(&headers)
+	var hfs []qpack.HeaderField
 
-	encoder.WriteField(qpack.HeaderField{Name: ":status", Value: strconv.Itoa(status)})
+	hfs = append(hfs, qpack.HeaderField{Name: ":status", Value: strconv.Itoa(status)})
 
 	for k, v := range w.header {
 		for index := range v {
-			encoder.WriteField(qpack.HeaderField{Name: strings.ToLower(k), Value: v[index]})
+			hf := qpack.HeaderField{Name: strings.ToLower(k), Value: v[index]}
+			hfs = append(hfs, hf)
 		}
 	}
 
-	f.flength = uint64(headers.Len())
-	f.fpayload = headers.Bytes()
+	hframe.hfs = hfs
 
-	w.bufferedStream.Write(f.GetBytes())
+	w.bufferedStream.Write(hframe.GetBytes())
 	w.bufferedStream.Flush()
 }
 
 func (w *ResponseWriter) Write(data []byte) (int, error) {
 
-	df := Frame{Type: FRAME_DATA, flength: uint64(len(data)), fpayload: data}
+	df := DataFrame{data: data}
 
 	n, err := w.bufferedStream.Write(df.GetBytes())
 	w.bufferedStream.Flush()

@@ -1,6 +1,7 @@
 package wt
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -47,14 +48,15 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 
 	serverstream.Write(data)
 
-	serverSettingFrame := h3.SettingsFrame{Type: h3.FRAME_SETTINGS, Length: uint64(len(DEFAULT_SETTINGS)), Settings: DEFAULT_SETTINGS}
+	serverSettingFrame := h3.SettingsFrame{Settings: DEFAULT_SETTINGS}
 	serverstream.Write(serverSettingFrame.GetBytes())
 
-	log.Printf("[Sending Server Settings]%s", serverSettingFrame.GetString())
+	log.Printf("[Sending Server Settings][%s]", serverSettingFrame.GetString())
 
 	// 2. Server accepts a Uni-Stream and reads the Client SettingsFrame
 
 	clientstream, err := quicConn.AcceptUniStream(context.TODO())
+	clientreader := bufio.NewReader(clientstream)
 
 	if err != nil {
 		return nil, nil, err
@@ -67,35 +69,40 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 		return nil, nil, fmt.Errorf("[Client Control Header Type Mismatch][%x]", StreamControlHeader.Type)
 	}
 
-	frame := &h3.Frame{}
-	settingsFrame, err := frame.Read(clientstream)
-
-	if frame.Type != h3.FRAME_SETTINGS {
-		return nil, nil, fmt.Errorf("[Error Receiving Settings from client][Type Mismatch][Type - %X]", frame.Type)
-	}
+	ftype, frame, err := h3.ParseFrame(clientreader)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	sFrame := settingsFrame.(h3.SettingsFrame)
+	if ftype != h3.FRAME_SETTINGS {
+		return nil, nil, fmt.Errorf("[Error Receiving Settings from client][Type Mismatch][Type - %X]", ftype)
+	}
+
+	sFrame := frame.(*h3.SettingsFrame)
 
 	log.Printf("[Received Client Settings][%s]", sFrame.GetString())
 
 	// 3. Server now accepts Bi-Direction Stream, read headers and respond on the same stream
 
 	rrStream, err := quicConn.AcceptStream(context.TODO()) // Request-Response Stream
+	rreader := bufio.NewReader(rrStream)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	headerFrame := h3.Frame{}
-	headerFrame.Read(rrStream)
+	ftype, frame, err = h3.ParseFrame(rreader)
 
-	if headerFrame.Type != h3.FRAME_HEADERS {
-		return nil, nil, fmt.Errorf("[Error Processing WT conn][Received Wrong Headers][%X]", headerFrame.Type)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	if ftype != h3.FRAME_HEADERS {
+		return nil, nil, fmt.Errorf("[Error Processing WT conn][Received Wrong Headers][%X]", ftype)
+	}
+
+	headerFrame := frame.(*h3.HeaderFrame)
 
 	req, protocol, err := headerFrame.WrapRequest()
 
@@ -130,15 +137,19 @@ func (wts *WTSession) AcceptSession() {
 
 func (wts *WTSession) AcceptStream() (quic.Stream, error) {
 	stream, err := wts.quicConn.AcceptStream(context.TODO())
+	reader := bufio.NewReader(stream)
 
 	if err != nil {
 		return nil, err
 	}
 
-	header := h3.Frame{}
-	header.Read(stream)
+	ftype, _, err := h3.ParseFrame(reader)
 
-	if header.Type != STREAM_WEBTRANSPORT_BI_STREAM {
+	if err != nil {
+		return nil, err
+	}
+
+	if ftype != STREAM_WEBTRANSPORT_BI_STREAM {
 		return nil, fmt.Errorf("[Stream Header Mismatch]")
 	}
 
@@ -147,15 +158,19 @@ func (wts *WTSession) AcceptStream() (quic.Stream, error) {
 
 func (wts *WTSession) AcceptUniStream() (quic.ReceiveStream, error) {
 	stream, err := wts.quicConn.AcceptUniStream(context.TODO())
+	reader := bufio.NewReader(stream)
 
 	if err != nil {
 		return nil, err
 	}
 
-	header := StreamHeader{}
-	header.Read(stream)
+	ftype, _, err := h3.ParseFrame(reader)
 
-	if header.Type != STREAM_WEBTRANSPORT_UNI_STREAM {
+	if err != nil {
+		return nil, err
+	}
+
+	if ftype != STREAM_WEBTRANSPORT_UNI_STREAM {
 		return nil, fmt.Errorf("[Stream Header Mismatch]")
 	}
 

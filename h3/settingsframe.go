@@ -3,6 +3,7 @@ package h3
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -46,70 +47,102 @@ type Setting struct {
 	Value uint64
 }
 
-type SettingsFrame struct {
-	Type     uint64
-	Length   uint64
-	Settings []Setting
-}
+func (setting *Setting) Parse(r MessageReader) error {
+	key, err := quicvarint.Read(r)
 
-func (sframe *SettingsFrame) Read(f *Frame) error {
-
-	reader := bytes.NewReader(f.fpayload)
-
-	sarr := []Setting{}
-
-	for reader.Len() > 0 {
-		key, err := quicvarint.Read(reader)
-
-		if err != nil {
-			return err
-		}
-
-		value, err := quicvarint.Read(reader)
-
-		if err != nil {
-			return err
-		}
-
-		sarr = append(sarr, Setting{key, value})
+	if err != nil {
+		return err
 	}
 
-	sframe.Type = f.Type
-	sframe.Length = f.flength
-	sframe.Settings = sarr
+	value, err := quicvarint.Read(r)
+
+	if err != nil {
+		return err
+	}
+
+	setting.Key = key
+	setting.Value = value
 
 	return nil
 }
 
-func (sframe *SettingsFrame) GetBytes() []byte {
+func (setting Setting) GetBytes() []byte {
+	var data []byte
+
+	data = quicvarint.Append(data, setting.Key)
+	data = quicvarint.Append(data, setting.Value)
+
+	return data
+}
+
+func (setting Setting) GetLength() uint64 {
+	var len uint64 = 0
+	len = uint64(quicvarint.Len(setting.Key) + quicvarint.Len(setting.Value))
+	return len
+}
+
+type SettingsFrame struct {
+	Settings []Setting
+}
+
+func (sframe *SettingsFrame) Parse(r MessageReader) error {
+	length, err := quicvarint.Read(r)
+
+	if err != nil {
+		return err
+	}
+
+	data := make([]byte, length)
+	_, err = r.Read(data)
+
+	if err != nil {
+		return err
+	}
+
+	dlength := uint64(length)
+	reader := bytes.NewReader(data)
+
+	for dlength > 0 {
+		setting := Setting{}
+		setting.Parse(reader)
+
+		sframe.Settings = append(sframe.Settings, setting)
+
+		dlength = dlength - setting.GetLength()
+	}
+
+	return nil
+}
+
+func (sframe SettingsFrame) GetBytes() []byte {
+	var data []byte
+
+	data = quicvarint.Append(data, FRAME_SETTINGS)
 
 	var length uint64 = 0
 
-	for _, s := range sframe.Settings {
-		length += uint64(quicvarint.Len(s.Key) + quicvarint.Len(s.Value))
+	for _, setting := range sframe.Settings {
+		length += setting.GetLength()
 	}
 
-	var data []byte
+	data = quicvarint.Append(data, length)
 
-	for _, s := range sframe.Settings {
-		data = quicvarint.Append(data, s.Key)
-		data = quicvarint.Append(data, s.Value)
+	for _, setting := range sframe.Settings {
+		data = append(data, setting.GetBytes()...)
 	}
 
-	f := Frame{Type: FRAME_SETTINGS, flength: length, fpayload: data}
-
-	return f.GetBytes()
+	return data
 }
 
 func (sframe *SettingsFrame) GetString() string {
 
-	str := fmt.Sprintf("[Type - %s][Length - %d][{", GetFrameTypeString(sframe.Type), sframe.Length)
+	str := "{"
 
 	for _, s := range sframe.Settings {
 		str += fmt.Sprintf("%s : %d ", GetSettingString(s.Key), s.Value)
 	}
 
-	str += "}]"
+	str += strings.TrimSuffix(str, " ") + "}"
 
 	return str
 }
