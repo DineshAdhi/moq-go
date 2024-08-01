@@ -2,9 +2,6 @@ package moqt
 
 import (
 	"io"
-	"log"
-
-	"github.com/quic-go/quic-go/quicvarint"
 )
 
 const (
@@ -69,7 +66,6 @@ func GetMoqMessageString(mtype uint64) string {
 }
 
 type MOQTMessage interface {
-	Mtype   uint64
+	Append([]byte)
 	Parse(io.Reader)
 }
-

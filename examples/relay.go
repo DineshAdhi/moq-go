@@ -37,21 +37,12 @@ func main() {
 
 		log.Printf("[Client Setup][%+v]", clientsetup)
 
-		serverSetup := moq.DefaultServerSetup()
+		serverSetup := moqt.DefaultServerSetup()
 		bistream.Write(serverSetup.GetBytes())
 
 		log.Printf("[Sent SERVER SETUP][%+v]", serverSetup)
 
 		for {
-			msg := moqt.MOQTMessage{}
-			err := msg.Read(bistream)
-
-			if err != nil {
-				log.Printf("[Error Reading MOQT Message]%s", err)
-				break
-			}
-
-			log.Printf("[Got MOQT Mesage][%s]", moqt.GetMoqMessageString(msg.Mtype))
 		}
 	})
 
