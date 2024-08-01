@@ -19,6 +19,17 @@ type Parameter interface {
 
 type Parameters map[uint64]Parameter
 
+func GetParamKeyString(ptype uint64) string {
+	switch ptype {
+	case ROLE_PARAM:
+		return "ROLE"
+	case PATH_PARAM:
+		return "PATH"
+	default:
+		return "UNKNOWN PARAM"
+	}
+}
+
 func (params Parameters) Parse(r MOQTReader) error {
 
 	reader := bufio.NewReader(r)

@@ -40,5 +40,5 @@ func (param IntParameter) GetBytes() []byte {
 }
 
 func (param IntParameter) String() string {
-	return fmt.Sprintf("Key : %v, Value : %v", param.ptype, param.pvalue)
+	return fmt.Sprintf("%s : %X", GetParamKeyString(param.ptype), param.pvalue)
 }

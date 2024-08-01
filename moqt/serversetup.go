@@ -2,6 +2,7 @@ package moqt
 
 import (
 	"bufio"
+	"fmt"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -11,7 +12,7 @@ type ServerSetup struct {
 	Params          Parameters
 }
 
-func (setup *ServerSetup) GetBytes() []byte {
+func (setup ServerSetup) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, setup.SelectedVersion)
@@ -28,7 +29,7 @@ func (setup *ServerSetup) GetBytes() []byte {
 	return data
 }
 
-func (setup *ServerSetup) Parse(r MOQTReader) error {
+func (setup ServerSetup) Parse(r MOQTReader) error {
 
 	reader := bufio.NewReader(r)
 	var err error
@@ -45,4 +46,17 @@ func (setup *ServerSetup) Parse(r MOQTReader) error {
 	setup.Params = params
 
 	return nil
+}
+
+func (setup ServerSetup) Print() string {
+
+	str := fmt.Sprintf("[%s]", GetMoqMessageString(SERVER_SETUP))
+	str += fmt.Sprintf("[Selected Version - %x][{", setup.SelectedVersion)
+
+	for key, param := range setup.Params {
+		str += fmt.Sprintf("%s :", GetParamKeyString(key))
+		str += fmt.Sprintf("%s ", param.String())
+	}
+
+	return str
 }

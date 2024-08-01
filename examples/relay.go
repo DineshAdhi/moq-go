@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"log"
+	"moq-go/moqt"
 	"moq-go/wt"
 	"net/http"
 )
@@ -19,12 +21,25 @@ func main() {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		_, err := wts.AcceptStream()
+		bistream, err := wts.AcceptStream()
 
 		if err != nil {
 			log.Printf("[Error Accepting Stream from WTS]%s", err)
 			return
 		}
+
+		reader := bufio.NewReader(bistream)
+
+		for {
+			_, msg, err := moqt.ParseMOQTMessage(reader)
+
+			if err != nil {
+				log.Printf("[Error Receiving MOQT Message][%s]", err)
+			}
+
+			log.Printf("%s", msg.Print())
+		}
+
 	})
 
 	wtserver := wt.WTServer{

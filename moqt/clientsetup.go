@@ -2,6 +2,8 @@ package moqt
 
 import (
 	"bufio"
+	"fmt"
+	"strings"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -61,4 +63,27 @@ func (setup *ClientSetup) Parse(r MOQTReader) error {
 	setup.Params = params
 
 	return nil
+}
+
+func (setup ClientSetup) Print() string {
+	str := fmt.Sprintf("[%s]", GetMoqMessageString(CLIENT_SETUP))
+	str += "[Supported Versions - {"
+
+	for _, version := range setup.SelectedVersions {
+		str += fmt.Sprintf("%X ", version)
+	}
+
+	str = strings.TrimSuffix(str, " ")
+
+	str += "}][{"
+
+	for _, param := range setup.Params {
+		str += param.String() + ","
+	}
+
+	str = strings.TrimSuffix(str, ",")
+
+	str += "}]"
+
+	return str
 }
