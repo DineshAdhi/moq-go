@@ -1,136 +1,64 @@
 package moqt
 
 import (
-	"fmt"
-	"io"
-	"log"
+	"bufio"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
-const (
-	DRAFT_00 = 0xff000000
-	DRAFT_01 = 0xff000001
-	DRAFT_02 = 0xff000002
-	DRAFT_03 = 0xff000003
-)
-
-const (
-	ROLE_PARAM = 0x00
-	PATH_PARAM = 0x01
-)
-
-const (
-	Publisher  = 0x01
-	SUBSCRIBER = 0x02
-	PUBSUB     = 0x03
-)
-
-func GetRoleString(rtype uint64) string {
-	switch rtype {
-	case Publisher:
-		return "Publisher"
-	case SUBSCRIBER:
-		return "SUBSCRIBER"
-	case PUBSUB:
-		return "PUBSUB"
-	default:
-		return "UNKNOWN ROLE"
-	}
-}
-
-func GetParamterTypeString(ptype uint64) string {
-	switch ptype {
-	case ROLE_PARAM:
-		return "ROLE_PARAM"
-	case PATH_PARAM:
-		return "PATH_PARAM"
-	default:
-		return "UNKNOWN_PARAM"
-	}
-}
-
-type SetupParameter struct {
-	ptype  uint64
-	pvalue uint64
-}
-
 type ClientSetup struct {
-	SupportedVersions []uint64
-	Params            []SetupParameter
+	SelectedVersions []uint64
+	Params           Parameters
 }
 
-func (cs *ClientSetup) Read(r io.Reader) error {
+func (setup *ClientSetup) GetBytes() []byte {
+	var data []byte
 
-	bytesReader := quicvarint.NewReader(r)
+	nversions := uint64(len(setup.SelectedVersions))
 
-	mtype, err := quicvarint.Read(bytesReader) // MessageType - MOQT Message
+	data = quicvarint.Append(data, nversions)
 
-	if err != nil {
-		return err
+	for _, version := range setup.SelectedVersions {
+		data = quicvarint.Append(data, version)
 	}
 
-	if mtype != CLIENT_SETUP {
-		return fmt.Errorf("[Received Invalid Mtype][%s][%X]", GetMoqMessageString(mtype), mtype)
+	nparams := uint64(len(setup.Params))
+	data = quicvarint.Append(data, nparams)
+
+	for ptype, param := range setup.Params {
+		data = quicvarint.Append(data, ptype)
+		pvalue := param.GetBytes()
+		data = append(data, pvalue...)
 	}
 
-	nversions, err := quicvarint.Read(bytesReader)
+	return data
+}
+
+func (setup *ClientSetup) Parse(r MOQTReader) error {
+
+	reader := bufio.NewReader(r)
+	var err error
+
+	nversions, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
 	}
 
 	for range nversions {
-		version, err := quicvarint.Read(bytesReader)
+		version, err := quicvarint.Read(reader)
 
 		if err != nil {
 			return err
 		}
 
-		cs.SupportedVersions = append(cs.SupportedVersions, version)
+		setup.SelectedVersions = append(setup.SelectedVersions, version)
 	}
 
-	nparams, err := quicvarint.Read(bytesReader)
+	params := Parameters{}
+	params.Parse(r)
 
-	if err != nil {
-		log.Printf("[Error Reading nParams][%s]", err)
-		return err
-	}
+	setup.Params = params
 
-	for range nparams {
-		ptype, err := quicvarint.Read(bytesReader)
-
-		if err != nil {
-			return err
-		}
-
-		_, err = quicvarint.Read(bytesReader)
-
-		if err != nil {
-			return err
-		}
-
-		pvalue, err := quicvarint.Read(bytesReader) // Setup Parameter is always encoded as uint64. So, ignoring len here
-
-		if err != nil {
-			log.Printf("[Client Setup][Error While Parsing][%s]", err)
-			return err
-		}
-
-		param := SetupParameter{}
-		param.ptype = ptype
-		param.pvalue = pvalue
-
-		cs.Params = append(cs.Params, param)
-	}
-
-	for _, version := range cs.SupportedVersions {
-		if version == DRAFT_03 {
-			return nil
-		}
-	}
-
-	log.Printf("[CLIENT SETUP HAS UNSUPPORTED DRAFT VERSION]")
-
-	return err
+	return nil
 }

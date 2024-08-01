@@ -1,43 +1,48 @@
 package moqt
 
-import "github.com/quic-go/quic-go/quicvarint"
+import (
+	"bufio"
+
+	"github.com/quic-go/quic-go/quicvarint"
+)
 
 type ServerSetup struct {
 	SelectedVersion uint64
-	Params          []SetupParameter
+	Params          Parameters
 }
 
-func (s *ServerSetup) GetBytes() []byte {
-	data := []byte{}
+func (setup *ServerSetup) GetBytes() []byte {
+	var data []byte
 
-	data = quicvarint.Append(data, uint64(SERVER_SETUP))      // MOQT Type
-	data = quicvarint.Append(data, uint64(s.SelectedVersion)) // Supported Version
+	data = quicvarint.Append(data, setup.SelectedVersion)
 
-	length := len(s.Params)
+	nparams := uint64(len(setup.Params))
+	data = quicvarint.Append(data, nparams)
 
-	data = quicvarint.Append(data, uint64(length))
-
-	for _, param := range s.Params {
-		data = quicvarint.Append(data, param.ptype)
-		var len uint64 = uint64(quicvarint.Len(param.pvalue))
-		data = quicvarint.Append(data, len)
-
-		data = quicvarint.Append(data, param.pvalue)
+	for ptype, param := range setup.Params {
+		data = quicvarint.Append(data, ptype)
+		pvalue := param.GetBytes()
+		data = append(data, pvalue...)
 	}
 
 	return data
 }
 
-func DefaultServerSetup() ServerSetup {
-	s := ServerSetup{}
+func (setup *ServerSetup) Parse(r MOQTReader) error {
 
-	s.SelectedVersion = DRAFT_03
-	s.Params = []SetupParameter{
-		{
-			ptype:  ROLE_PARAM,
-			pvalue: SUBSCRIBER,
-		},
+	reader := bufio.NewReader(r)
+	var err error
+
+	setup.SelectedVersion, err = quicvarint.Read(reader)
+
+	if err != nil {
+		return err
 	}
 
-	return s
+	params := Parameters{}
+	params.Parse(r)
+
+	setup.Params = params
+
+	return nil
 }

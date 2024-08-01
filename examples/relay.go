@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"moq-go/moqt"
 	"moq-go/wt"
 	"net/http"
 )
@@ -20,29 +19,11 @@ func main() {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		bistream, err := wts.AcceptStream()
+		_, err := wts.AcceptStream()
 
 		if err != nil {
 			log.Printf("[Error Accepting Stream from WTS]%s", err)
 			return
-		}
-
-		clientsetup := &moqt.ClientSetup{}
-		err = clientsetup.Read(bistream)
-
-		if err != nil {
-			log.Printf("[Error Receiving Client Setup]%s", err)
-			return
-		}
-
-		log.Printf("[Client Setup][%+v]", clientsetup)
-
-		serverSetup := moqt.DefaultServerSetup()
-		bistream.Write(serverSetup.GetBytes())
-
-		log.Printf("[Sent SERVER SETUP][%+v]", serverSetup)
-
-		for {
 		}
 	})
 
