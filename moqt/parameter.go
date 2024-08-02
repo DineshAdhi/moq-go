@@ -1,7 +1,7 @@
 package moqt
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -15,6 +15,13 @@ const (
 	ROLE_PUBLISHER  = uint64(0x01)
 	ROLE_SUBSCRIBER = uint64(0x02)
 	ROLE_PUBSUB     = uint64(0x03)
+)
+
+const (
+	DRAFT_00 = 0xff000000
+	DRAFT_01 = 0xff000001
+	DRAFT_02 = 0xff000002
+	DRAFT_03 = 0xff000003
 )
 
 type Parameter interface {
@@ -43,9 +50,9 @@ func GetRoleString(param Parameter) string {
 	case ROLE_PUBLISHER:
 		return string("ROLE_PUBLISHER")
 	case ROLE_SUBSCRIBER:
-		return string("ROLE_PUBLISHER")
+		return string("ROLE_SUBCRIBER")
 	case ROLE_PUBSUB:
-		return string("ROLE_PUBLISHER")
+		return string("ROLE_PUB_SUB")
 	default:
 		return string("UNKNOWN_ROLE")
 	}
@@ -75,35 +82,33 @@ func (params Parameters) Parse(reader quicvarint.Reader) error {
 			return err
 		}
 
+		var param Parameter
+
 		switch ptype {
 		case ROLE_PARAM:
-			intParam := &IntParameter{ptype: ptype}
-			err := intParam.Parse(reader)
-
-			if err != nil {
-				return err
-			}
-
-			params[ptype] = intParam
+			param = &IntParameter{Ptype: ptype}
 		case ROLE_PATH:
-			strParam := &StringParameter{ptype: ptype}
-			err := strParam.Parse(reader)
-
-			if err != nil {
-				return err
-			}
-
-			params[ptype] = strParam
+			param = &StringParameter{ptype: ptype}
 		default:
 			len, err := quicvarint.Read(reader)
+
 			if err != nil {
 				return err
 			}
 
 			discardData := make([]byte, len)
 			reader.Read(discardData)
-			log.Print("UNKNOWN PARAM")
+
+			return fmt.Errorf("[Unknown Param]")
 		}
+
+		err = param.Parse(reader)
+
+		if err != nil {
+			return err
+		}
+
+		params[ptype] = param
 	}
 
 	return nil

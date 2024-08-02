@@ -16,30 +16,64 @@ const KEYPATH = "./certs/localhost.key"
 
 var ALPNS = []string{"h3"} // Application Layer Protocols ["H3" - WebTransport]
 
+var DEFAULT_SERVER_SETUP = moqt.ServerSetup{SelectedVersion: moqt.DRAFT_03, Params: moqt.Parameters{
+	moqt.ROLE_PARAM: &moqt.IntParameter{moqt.ROLE_PARAM, moqt.ROLE_PUBSUB},
+}}
+
 func main() {
 
 	http.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		bistream, err := wts.AcceptStream()
-		reader := quicvarint.NewReader(bistream)
+		controlStream, err := wts.AcceptStream()
+		controlReader := quicvarint.NewReader(controlStream)
 
 		if err != nil {
 			log.Printf("[Error Accepting Stream from WTS]%s", err)
 			return
 		}
 
-		for {
-			_, msg, err := moqt.ParseMOQTMessage(reader)
+		// 1. Client Setup Parsing
 
-			if err != nil {
-				log.Printf("[Error Receiving MOQT Message][%s]", err)
-				return
-			}
+		mtype, msg, err := moqt.ParseMOQTMessage(controlReader)
 
-			log.Printf("[MOQT]%s\n\n", msg.Print())
+		if err != nil {
+			log.Printf("[Error Receiving MOQT Message][%s]", err)
+			return
 		}
+
+		if mtype != moqt.CLIENT_SETUP {
+			log.Printf("[Client Setup Error][Unexpected MOQT Message][Received - %s(%X)]", moqt.GetMoqMessageString(mtype), mtype)
+			return
+		}
+
+		clientSetup := msg.(*moqt.ClientSetup)
+
+		if !clientSetup.CheckDraftSupport() {
+			log.Printf("[Client Setup Error][Unsupported Draft Versions][%+v]", clientSetup.SupportedVersions)
+			return
+		}
+
+		log.Printf("[Received Client Setup][%s]", clientSetup.Print())
+
+		// 2. Server Setup Dispatching
+
+		serverSetup := DEFAULT_SERVER_SETUP
+		_, err = controlStream.Write(serverSetup.GetBytes())
+
+		if err != nil {
+			log.Printf("[Server Setup Dispatch Error][%s]", err)
+			return
+		}
+
+		log.Printf("[Sent Server Setup][%s]", serverSetup.Print())
+
+		// 3. Wait for Announce
+
+		mtype, msg, err = moqt.ParseMOQTMessage(controlReader)
+
+		log.Printf("MTYPE - %s(%X)", moqt.GetMoqMessageString(mtype), mtype)
 
 	})
 

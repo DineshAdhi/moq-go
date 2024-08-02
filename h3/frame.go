@@ -61,35 +61,27 @@ func ParseFrame(reader quicvarint.Reader) (uint64, Frame, error) {
 	switch ftype {
 	case FRAME_SETTINGS:
 		frame = &SettingsFrame{}
-		err = frame.Parse(reader)
-
-		if err != nil {
-			return ftype, nil, err
-		}
-
-		return ftype, frame, nil
 	case FRAME_HEADERS:
 		frame = &HeaderFrame{}
-		err = frame.Parse(reader)
-
-		if err != nil {
-			return ftype, nil, err
-		}
-
-		return ftype, frame, nil
 	case FRAME_DATA, FRAME_WEBTRANSPORT_BI_STREAM, FRAME_WEBTRANSPORT_UNI_STREAM:
 		frame = &DataFrame{}
-		err = frame.Parse(reader)
+	default:
+		len, err := quicvarint.Read(reader)
 
 		if err != nil {
 			return ftype, nil, err
 		}
 
-		return ftype, frame, nil
-	default:
-		len, _ := quicvarint.Read(reader)
 		data := make([]byte, len)
 		reader.Read(data)
 		return ftype, nil, fmt.Errorf("[Unkown Frame][Type - %X]", ftype)
 	}
+
+	err = frame.Parse(reader)
+
+	if err != nil {
+		return ftype, nil, err
+	}
+
+	return ftype, frame, nil
 }

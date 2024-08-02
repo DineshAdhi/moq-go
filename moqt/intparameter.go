@@ -7,16 +7,16 @@ import (
 )
 
 type IntParameter struct {
-	ptype  uint64
-	pvalue uint64
+	Ptype  uint64
+	Pvalue uint64
 }
 
 func (param IntParameter) Type() uint64 {
-	return param.ptype
+	return param.Ptype
 }
 
 func (param IntParameter) Value() interface{} {
-	return param.pvalue
+	return param.Pvalue
 }
 
 func (param *IntParameter) Parse(reader quicvarint.Reader) error {
@@ -33,19 +33,19 @@ func (param *IntParameter) Parse(reader quicvarint.Reader) error {
 		return err
 	}
 
-	param.pvalue = pvalue
+	param.Pvalue = pvalue
 
 	return nil
 }
 
 func (param IntParameter) GetBytes() []byte {
 	var data []byte
-	data = quicvarint.Append(data, uint64(quicvarint.Len(param.pvalue)))
-	data = quicvarint.Append(data, param.pvalue)
+	data = quicvarint.Append(data, uint64(quicvarint.Len(param.Pvalue)))
+	data = quicvarint.Append(data, param.Pvalue)
 
 	return data
 }
 
 func (param IntParameter) String() string {
-	return fmt.Sprintf("%s : %s(0x%02X)", GetParamKeyString(&param), GetParamValueString(&param), param.pvalue)
+	return fmt.Sprintf("%s : %s(0x%02X)", GetParamKeyString(&param), GetParamValueString(&param), param.Pvalue)
 }

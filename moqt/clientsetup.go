@@ -8,19 +8,19 @@ import (
 )
 
 type ClientSetup struct {
-	SelectedVersions []uint64
-	Params           Parameters
+	SupportedVersions []uint64
+	Params            Parameters
 }
 
 func (setup *ClientSetup) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, CLIENT_SETUP)
-	nversions := uint64(len(setup.SelectedVersions))
+	nversions := uint64(len(setup.SupportedVersions))
 
 	data = quicvarint.Append(data, nversions)
 
-	for _, version := range setup.SelectedVersions {
+	for _, version := range setup.SupportedVersions {
 		data = quicvarint.Append(data, version)
 	}
 
@@ -53,7 +53,7 @@ func (setup *ClientSetup) Parse(reader quicvarint.Reader) error {
 			return err
 		}
 
-		setup.SelectedVersions = append(setup.SelectedVersions, version)
+		setup.SupportedVersions = append(setup.SupportedVersions, version)
 	}
 
 	params := Parameters{}
@@ -68,7 +68,7 @@ func (setup ClientSetup) Print() string {
 	str := fmt.Sprintf("[%s]", GetMoqMessageString(CLIENT_SETUP))
 	str += "[Supported Versions - {"
 
-	for _, version := range setup.SelectedVersions {
+	for _, version := range setup.SupportedVersions {
 		str += fmt.Sprintf("%X ", version)
 	}
 
@@ -85,4 +85,15 @@ func (setup ClientSetup) Print() string {
 	str += "}]"
 
 	return str
+}
+
+func (setup ClientSetup) CheckDraftSupport() bool {
+
+	for _, version := range setup.SupportedVersions {
+		if version == DRAFT_03 {
+			return true
+		}
+	}
+
+	return false
 }

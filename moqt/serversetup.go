@@ -22,8 +22,7 @@ func (setup ServerSetup) GetBytes() []byte {
 
 	for ptype, param := range setup.Params {
 		data = quicvarint.Append(data, ptype)
-		pvalue := param.GetBytes()
-		data = append(data, pvalue...)
+		data = append(data, param.GetBytes()...)
 	}
 
 	return data
