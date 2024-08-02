@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"log"
 	"moq-go/moqt"
 	"moq-go/wt"
 	"net/http"
+
+	"github.com/quic-go/quic-go/quicvarint"
 )
 
 const LISTENADDR = "0.0.0.0:4443"
@@ -22,13 +23,12 @@ func main() {
 		wts.AcceptSession()
 
 		bistream, err := wts.AcceptStream()
+		reader := quicvarint.NewReader(bistream)
 
 		if err != nil {
 			log.Printf("[Error Accepting Stream from WTS]%s", err)
 			return
 		}
-
-		reader := bufio.NewReader(bistream)
 
 		for {
 			_, msg, err := moqt.ParseMOQTMessage(reader)
@@ -38,7 +38,7 @@ func main() {
 				return
 			}
 
-			log.Printf("%s", msg.Print())
+			log.Printf("[MOQT]%s\n\n", msg.Print())
 		}
 
 	})

@@ -1,7 +1,6 @@
 package wt
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -9,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/quicvarint"
 )
 
 type WTSession struct {
@@ -39,14 +39,8 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 		return nil, nil, err
 	}
 
-	StreamControlHeader := StreamHeader{Type: STREAM_CONTROL}
-	data, err := StreamControlHeader.GetBytes()
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	serverstream.Write(data)
+	controlHeader := StreamHeader{Type: STREAM_CONTROL}
+	serverstream.Write(controlHeader.GetBytes())
 
 	serverSettingFrame := h3.SettingsFrame{Settings: DEFAULT_SETTINGS}
 	serverstream.Write(serverSettingFrame.GetBytes())
@@ -56,17 +50,17 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	// 2. Server accepts a Uni-Stream and reads the Client SettingsFrame
 
 	clientstream, err := quicConn.AcceptUniStream(context.TODO())
-	clientreader := bufio.NewReader(clientstream)
+	clientreader := quicvarint.NewReader(clientstream)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	StreamControlHeader = StreamHeader{}
-	StreamControlHeader.Read(clientstream)
+	controlHeader = StreamHeader{}
+	controlHeader.Read(clientreader)
 
-	if StreamControlHeader.Type != STREAM_CONTROL {
-		return nil, nil, fmt.Errorf("[Client Control Header Type Mismatch][%x]", StreamControlHeader.Type)
+	if controlHeader.Type != STREAM_CONTROL {
+		return nil, nil, fmt.Errorf("[Client Control Header Type Mismatch][%x]", controlHeader.Type)
 	}
 
 	ftype, frame, err := h3.ParseFrame(clientreader)
@@ -86,7 +80,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	// 3. Server now accepts Bi-Direction Stream, read headers and respond on the same stream
 
 	rrStream, err := quicConn.AcceptStream(context.TODO()) // Request-Response Stream
-	rreader := bufio.NewReader(rrStream)
+	rreader := quicvarint.NewReader(rrStream)
 
 	if err != nil {
 		return nil, nil, err
@@ -137,7 +131,7 @@ func (wts *WTSession) AcceptSession() {
 
 func (wts *WTSession) AcceptStream() (quic.Stream, error) {
 	stream, err := wts.quicConn.AcceptStream(context.TODO())
-	reader := bufio.NewReader(stream)
+	reader := quicvarint.NewReader(stream)
 
 	if err != nil {
 		return nil, err
@@ -158,7 +152,7 @@ func (wts *WTSession) AcceptStream() (quic.Stream, error) {
 
 func (wts *WTSession) AcceptUniStream() (quic.ReceiveStream, error) {
 	stream, err := wts.quicConn.AcceptUniStream(context.TODO())
-	reader := bufio.NewReader(stream)
+	reader := quicvarint.NewReader(stream)
 
 	if err != nil {
 		return nil, err

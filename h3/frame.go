@@ -1,6 +1,8 @@
 package h3
 
 import (
+	"fmt"
+
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
@@ -42,13 +44,13 @@ func GetFrameTypeString(ftype uint64) string {
 }
 
 type Frame interface {
-	Parse(r MessageReader) error
+	Parse(reader quicvarint.Reader) error
 	GetBytes() []byte
 }
 
-func ParseFrame(r MessageReader) (uint64, Frame, error) {
+func ParseFrame(reader quicvarint.Reader) (uint64, Frame, error) {
 
-	ftype, err := quicvarint.Read(r)
+	ftype, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return 0, nil, err
@@ -59,26 +61,35 @@ func ParseFrame(r MessageReader) (uint64, Frame, error) {
 	switch ftype {
 	case FRAME_SETTINGS:
 		frame = &SettingsFrame{}
-		err = frame.Parse(r)
+		err = frame.Parse(reader)
 
 		if err != nil {
 			return ftype, nil, err
 		}
+
+		return ftype, frame, nil
 	case FRAME_HEADERS:
 		frame = &HeaderFrame{}
-		err = frame.Parse(r)
+		err = frame.Parse(reader)
 
 		if err != nil {
 			return ftype, nil, err
 		}
-	case FRAME_DATA:
+
+		return ftype, frame, nil
+	case FRAME_DATA, FRAME_WEBTRANSPORT_BI_STREAM, FRAME_WEBTRANSPORT_UNI_STREAM:
 		frame = &DataFrame{}
-		err = frame.Parse(r)
+		err = frame.Parse(reader)
 
 		if err != nil {
 			return ftype, nil, err
 		}
-	}
 
-	return ftype, frame, nil
+		return ftype, frame, nil
+	default:
+		len, _ := quicvarint.Read(reader)
+		data := make([]byte, len)
+		reader.Read(data)
+		return ftype, nil, fmt.Errorf("[Unkown Frame][Type - %X]", ftype)
+	}
 }

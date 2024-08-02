@@ -1,20 +1,23 @@
 package h3
 
-import "github.com/quic-go/quic-go/quicvarint"
+import (
+	"github.com/quic-go/quic-go/quicvarint"
+)
 
 type DataFrame struct {
 	data []byte
 }
 
-func (dframe *DataFrame) Parse(r MessageReader) error {
-	len, err := quicvarint.Read(r)
+func (dframe *DataFrame) Parse(reader quicvarint.Reader) error {
+
+	len, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
 	}
 
 	data := make([]byte, len)
-	r.Read(data)
+	reader.Read(data)
 
 	dframe.data = data
 

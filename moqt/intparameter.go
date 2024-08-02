@@ -2,7 +2,6 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/h3"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -20,9 +19,8 @@ func (param IntParameter) Value() interface{} {
 	return param.pvalue
 }
 
-func (param *IntParameter) Parse(r h3.MessageReader) error {
+func (param *IntParameter) Parse(reader quicvarint.Reader) error {
 
-	reader := quicvarint.NewReader(r)
 	_, err := quicvarint.Read(reader)
 
 	if err != nil {

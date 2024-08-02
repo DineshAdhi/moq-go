@@ -3,7 +3,6 @@ package h3
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -47,14 +46,15 @@ type Setting struct {
 	Value uint64
 }
 
-func (setting *Setting) Parse(r MessageReader) error {
-	key, err := quicvarint.Read(r)
+func (setting *Setting) Parse(reader quicvarint.Reader) error {
+
+	key, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
 	}
 
-	value, err := quicvarint.Read(r)
+	value, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
@@ -85,22 +85,23 @@ type SettingsFrame struct {
 	Settings []Setting
 }
 
-func (sframe *SettingsFrame) Parse(r MessageReader) error {
-	length, err := quicvarint.Read(r)
+func (sframe *SettingsFrame) Parse(reader quicvarint.Reader) error {
+
+	length, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
 	}
 
 	data := make([]byte, length)
-	_, err = r.Read(data)
+	_, err = reader.Read(data)
 
 	if err != nil {
 		return err
 	}
 
 	dlength := uint64(length)
-	reader := bytes.NewReader(data)
+	reader = bytes.NewReader(data)
 
 	for dlength > 0 {
 		setting := Setting{}
@@ -136,13 +137,13 @@ func (sframe SettingsFrame) GetBytes() []byte {
 
 func (sframe *SettingsFrame) GetString() string {
 
-	str := "{"
+	str := "{ "
 
 	for _, s := range sframe.Settings {
 		str += fmt.Sprintf("%s : %d ", GetSettingString(s.Key), s.Value)
 	}
 
-	str += strings.TrimSuffix(str, " ") + "}"
+	str += "}"
 
 	return str
 }

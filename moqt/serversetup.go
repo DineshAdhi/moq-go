@@ -1,9 +1,7 @@
 package moqt
 
 import (
-	"bufio"
 	"fmt"
-	"moq-go/h3"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -31,9 +29,8 @@ func (setup ServerSetup) GetBytes() []byte {
 	return data
 }
 
-func (setup *ServerSetup) Parse(r h3.MessageReader) error {
+func (setup *ServerSetup) Parse(reader quicvarint.Reader) error {
 
-	reader := bufio.NewReader(r)
 	var err error
 
 	setup.SelectedVersion, err = quicvarint.Read(reader)
@@ -43,7 +40,7 @@ func (setup *ServerSetup) Parse(r h3.MessageReader) error {
 	}
 
 	params := Parameters{}
-	params.Parse(r)
+	params.Parse(reader)
 
 	setup.Params = params
 

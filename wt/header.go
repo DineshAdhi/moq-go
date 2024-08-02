@@ -2,7 +2,6 @@ package wt
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -40,9 +39,9 @@ type StreamHeader struct {
 	ID   uint64
 }
 
-func (sh *StreamHeader) Read(r io.Reader) error {
-	vireader := quicvarint.NewReader(r)
-	htype, err := quicvarint.Read(vireader)
+func (sh *StreamHeader) Read(reader quicvarint.Reader) error {
+
+	htype, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
@@ -54,7 +53,7 @@ func (sh *StreamHeader) Read(r io.Reader) error {
 	case STREAM_CONTROL, STREAM_QPACK_ENCODER, STREAM_QPACK_DECODER:
 		return nil
 	case STREAM_PUSH, STREAM_WEBTRANSPORT_UNI_STREAM:
-		l, err := quicvarint.Read(vireader)
+		l, err := quicvarint.Read(reader)
 		if err != nil {
 			return err
 		}
@@ -65,7 +64,7 @@ func (sh *StreamHeader) Read(r io.Reader) error {
 	}
 }
 
-func (sh StreamHeader) GetBytes() ([]byte, error) {
+func (sh StreamHeader) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, sh.Type)
@@ -74,9 +73,7 @@ func (sh StreamHeader) GetBytes() ([]byte, error) {
 	case STREAM_CONTROL, STREAM_QPACK_ENCODER, STREAM_QPACK_DECODER:
 	case STREAM_PUSH, STREAM_WEBTRANSPORT_UNI_STREAM:
 		data = quicvarint.Append(data, sh.ID)
-	default:
-		return []byte{}, fmt.Errorf("[Error in GetBytes()][Unknown Type]")
 	}
 
-	return data, nil
+	return data
 }

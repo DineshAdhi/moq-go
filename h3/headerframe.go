@@ -16,15 +16,16 @@ type HeaderFrame struct {
 	hfs []qpack.HeaderField
 }
 
-func (hframe *HeaderFrame) Parse(r MessageReader) error {
-	length, err := quicvarint.Read(r)
+func (hframe *HeaderFrame) Parse(reader quicvarint.Reader) error {
+
+	length, err := quicvarint.Read(reader)
 
 	if err != nil {
 		return err
 	}
 
 	data := make([]byte, length)
-	r.Read(data)
+	reader.Read(data)
 
 	decoder := qpack.NewDecoder(nil)
 	hfs, err := decoder.DecodeFull(data)

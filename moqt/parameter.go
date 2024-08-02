@@ -1,7 +1,7 @@
 package moqt
 
 import (
-	"moq-go/h3"
+	"log"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -18,7 +18,7 @@ const (
 )
 
 type Parameter interface {
-	Parse(r h3.MessageReader) error
+	Parse(reader quicvarint.Reader) error
 	Type() uint64
 	Value() interface{}
 	GetBytes() []byte
@@ -60,7 +60,7 @@ func GetParamValueString(param Parameter) string {
 	}
 }
 
-func (params Parameters) Parse(reader h3.MessageReader) error {
+func (params Parameters) Parse(reader quicvarint.Reader) error {
 
 	length, err := quicvarint.Read(reader)
 
@@ -102,6 +102,7 @@ func (params Parameters) Parse(reader h3.MessageReader) error {
 
 			discardData := make([]byte, len)
 			reader.Read(discardData)
+			log.Print("UNKNOWN PARAM")
 		}
 	}
 

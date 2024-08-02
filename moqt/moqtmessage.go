@@ -1,7 +1,7 @@
 package moqt
 
 import (
-	"moq-go/h3"
+	"fmt"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -68,13 +68,12 @@ func GetMoqMessageString(mtype uint64) string {
 }
 
 type MOQTMessage interface {
-	Parse(r h3.MessageReader) error
+	Parse(reader quicvarint.Reader) error
 	GetBytes() []byte
 	Print() string
 }
 
-func ParseMOQTMessage(r h3.MessageReader) (uint64, MOQTMessage, error) {
-	reader := quicvarint.NewReader(r)
+func ParseMOQTMessage(reader quicvarint.Reader) (uint64, MOQTMessage, error) {
 
 	mtype, err := quicvarint.Read(reader)
 
@@ -89,9 +88,11 @@ func ParseMOQTMessage(r h3.MessageReader) (uint64, MOQTMessage, error) {
 		msg = &ClientSetup{}
 	case SERVER_SETUP:
 		msg = &ServerSetup{}
+	default:
+		return mtype, nil, fmt.Errorf("unkown MOQT Message %X", mtype)
 	}
 
-	msg.Parse(r)
+	msg.Parse(reader)
 
 	return mtype, msg, nil
 }
