@@ -27,8 +27,7 @@ func (setup *ClientSetup) GetBytes() []byte {
 	nparams := uint64(len(setup.Params))
 	data = quicvarint.Append(data, nparams)
 
-	for ptype, param := range setup.Params {
-		data = quicvarint.Append(data, ptype)
+	for _, param := range setup.Params {
 		pvalue := param.GetBytes()
 		data = append(data, pvalue...)
 	}
@@ -64,7 +63,7 @@ func (setup *ClientSetup) Parse(reader quicvarint.Reader) error {
 	return nil
 }
 
-func (setup ClientSetup) Print() string {
+func (setup ClientSetup) String() string {
 	str := fmt.Sprintf("[%s]", GetMoqMessageString(CLIENT_SETUP))
 	str += "[Supported Versions - {"
 

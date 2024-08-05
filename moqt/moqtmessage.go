@@ -70,7 +70,7 @@ func GetMoqMessageString(mtype uint64) string {
 type MOQTMessage interface {
 	Parse(reader quicvarint.Reader) error
 	GetBytes() []byte
-	Print() string
+	String() string
 }
 
 func ParseMOQTMessage(reader quicvarint.Reader) (uint64, MOQTMessage, error) {
@@ -88,6 +88,8 @@ func ParseMOQTMessage(reader quicvarint.Reader) (uint64, MOQTMessage, error) {
 		msg = &ClientSetup{}
 	case SERVER_SETUP:
 		msg = &ServerSetup{}
+	case ANNOUNCE:
+		msg = &AnnounceMessage{}
 	default:
 		return mtype, nil, fmt.Errorf("unkown MOQT Message %X", mtype)
 	}

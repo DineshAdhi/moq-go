@@ -55,7 +55,7 @@ func main() {
 			return
 		}
 
-		log.Printf("[Received Client Setup][%s]", clientSetup.Print())
+		log.Printf("[Received Client Setup][%s]", clientSetup.String())
 
 		// 2. Server Setup Dispatching
 
@@ -67,13 +67,13 @@ func main() {
 			return
 		}
 
-		log.Printf("[Sent Server Setup][%s]", serverSetup.Print())
+		log.Printf("[Sent Server Setup][%s]", serverSetup.String())
 
 		// 3. Wait for Announce
 
 		mtype, msg, err = moqt.ParseMOQTMessage(controlReader)
 
-		log.Printf("MTYPE - %s(%X)", moqt.GetMoqMessageString(mtype), mtype)
+		log.Printf("%s", msg.String())
 
 	})
 

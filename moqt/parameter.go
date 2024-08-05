@@ -113,3 +113,28 @@ func (params Parameters) Parse(reader quicvarint.Reader) error {
 
 	return nil
 }
+
+func (params Parameters) GetBytes() []byte {
+	var data []byte
+	paramlen := uint64(len(params))
+	data = quicvarint.Append(data, paramlen)
+
+	for _, param := range params {
+		data = append(data, param.GetBytes()...)
+	}
+
+	return data
+}
+
+func (params Parameters) String() string {
+
+	str := "[{"
+
+	for _, param := range params {
+		str += param.String() + " "
+	}
+
+	str += "}]"
+
+	return str
+}

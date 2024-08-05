@@ -20,8 +20,7 @@ func (setup ServerSetup) GetBytes() []byte {
 	nparams := uint64(len(setup.Params))
 	data = quicvarint.Append(data, nparams)
 
-	for ptype, param := range setup.Params {
-		data = quicvarint.Append(data, ptype)
+	for _, param := range setup.Params {
 		data = append(data, param.GetBytes()...)
 	}
 
@@ -46,7 +45,7 @@ func (setup *ServerSetup) Parse(reader quicvarint.Reader) error {
 	return nil
 }
 
-func (setup ServerSetup) Print() string {
+func (setup ServerSetup) String() string {
 
 	str := fmt.Sprintf("[%s]", GetMoqMessageString(SERVER_SETUP))
 	str += fmt.Sprintf("[Selected Version - %x][{", setup.SelectedVersion)

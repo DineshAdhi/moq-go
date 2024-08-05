@@ -40,6 +40,7 @@ func (param *IntParameter) Parse(reader quicvarint.Reader) error {
 
 func (param IntParameter) GetBytes() []byte {
 	var data []byte
+	data = quicvarint.Append(data, param.Ptype)
 	data = quicvarint.Append(data, uint64(quicvarint.Len(param.Pvalue)))
 	data = quicvarint.Append(data, param.Pvalue)
 
