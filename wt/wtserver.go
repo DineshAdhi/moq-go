@@ -3,7 +3,7 @@ package wt
 import (
 	"context"
 	"crypto/tls"
-	"log"
+	"moq-go/logger"
 	"net/http"
 
 	"github.com/quic-go/quic-go"
@@ -43,7 +43,7 @@ func (wtserver *WTServer) Run() error {
 		return err
 	}
 
-	log.Printf("[WebTransport Server][Listening on - %s]", wtserver.ListenAddr)
+	logger.InfoLog("[WebTransport Server][Listening on - %s]", wtserver.ListenAddr)
 
 	for {
 		quicConn, err := quicListener.Accept(context.Background())
@@ -61,7 +61,7 @@ func (server *WTServer) handleConnection(quicConn quic.Connection) {
 	wts, req, err := UpgradeWTS(quicConn)
 
 	if err != nil {
-		log.Printf("[Error Upgrading WT Session to MOQ]%s", err)
+		logger.ErrorLog("[Error Upgrading WT Session to MOQ][%s]", err)
 		return
 	}
 

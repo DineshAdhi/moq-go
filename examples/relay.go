@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"moq-go/logger"
 	"moq-go/moqt"
 	"moq-go/wt"
 	"net/http"
@@ -30,7 +30,7 @@ func main() {
 		controlReader := quicvarint.NewReader(controlStream)
 
 		if err != nil {
-			log.Printf("[Error Accepting Stream from WTS]%s", err)
+			logger.ErrorLog("[Error Accepting Stream from WTS]%s", err)
 			return
 		}
 
@@ -39,23 +39,23 @@ func main() {
 		mtype, msg, err := moqt.ParseMOQTMessage(controlReader)
 
 		if err != nil {
-			log.Printf("[Error Receiving MOQT Message][%s]", err)
+			logger.ErrorLog("[Error Receiving MOQT Message][%s]", err)
 			return
 		}
 
 		if mtype != moqt.CLIENT_SETUP {
-			log.Printf("[Client Setup Error][Unexpected MOQT Message][Received - %s(%X)]", moqt.GetMoqMessageString(mtype), mtype)
+			logger.ErrorLog("[Client Setup Error][Unexpected MOQT Message][Received - %s(%X)]", moqt.GetMoqMessageString(mtype), mtype)
 			return
 		}
 
 		clientSetup := msg.(*moqt.ClientSetup)
 
 		if !clientSetup.CheckDraftSupport() {
-			log.Printf("[Client Setup Error][Unsupported Draft Versions][%+v]", clientSetup.SupportedVersions)
+			logger.ErrorLog("[Client Setup Error][Unsupported Draft Versions][%+v]", clientSetup.SupportedVersions)
 			return
 		}
 
-		log.Printf("[Received Client Setup][%s]", clientSetup.String())
+		logger.InfoLog("[Received Client Setup][%s]", clientSetup.String())
 
 		// 2. Server Setup Dispatching
 
@@ -63,17 +63,17 @@ func main() {
 		_, err = controlStream.Write(serverSetup.GetBytes())
 
 		if err != nil {
-			log.Printf("[Server Setup Dispatch Error][%s]", err)
+			logger.ErrorLog("[Server Setup Dispatch Error][%s]", err)
 			return
 		}
 
-		log.Printf("[Sent Server Setup][%s]", serverSetup.String())
+		logger.InfoLog("[Sent Server Setup][%s]", serverSetup.String())
 
 		// 3. Wait for Announce
 
 		mtype, msg, err = moqt.ParseMOQTMessage(controlReader)
 
-		log.Printf("%s", msg.String())
+		logger.InfoLog("%s", msg.String())
 
 	})
 
@@ -87,6 +87,5 @@ func main() {
 
 	err := wtserver.Run()
 
-	log.Printf("[WTS Error][%s]", err)
-
+	logger.ErrorLog("[WTS Error][%s]", err)
 }

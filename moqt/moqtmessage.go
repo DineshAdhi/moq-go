@@ -2,6 +2,7 @@ package moqt
 
 import (
 	"fmt"
+	"moq-go/logger"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -95,6 +96,8 @@ func ParseMOQTMessage(reader quicvarint.Reader) (uint64, MOQTMessage, error) {
 	}
 
 	msg.Parse(reader)
+
+	logger.DebugLog("[MOQT Message Parsed][%+v]", msg)
 
 	return mtype, msg, nil
 }

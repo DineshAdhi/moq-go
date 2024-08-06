@@ -3,8 +3,8 @@ package wt
 import (
 	"context"
 	"fmt"
-	"log"
 	"moq-go/h3"
+	"moq-go/logger"
 	"net/http"
 
 	"github.com/quic-go/quic-go"
@@ -45,7 +45,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	serverSettingFrame := h3.SettingsFrame{Settings: DEFAULT_SETTINGS}
 	serverstream.Write(serverSettingFrame.GetBytes())
 
-	log.Printf("[Sending Server Settings][%s]", serverSettingFrame.GetString())
+	logger.InfoLog("[Sending Server Settings][%s]", serverSettingFrame.GetString())
 
 	// 2. Server accepts a Uni-Stream and reads the Client SettingsFrame
 
@@ -75,12 +75,14 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 
 	sFrame := frame.(*h3.SettingsFrame)
 
-	log.Printf("[Received Client Settings][%s]", sFrame.GetString())
+	logger.InfoLog("[Received Client Settings][%s]", sFrame.GetString())
 
 	// 3. Server now accepts Bi-Direction Stream, read headers and respond on the same stream
 
 	rrStream, err := quicConn.AcceptStream(context.TODO()) // Request-Response Stream
 	rreader := quicvarint.NewReader(rrStream)
+
+	logger.DebugLog("[RR Stream Accepted]")
 
 	if err != nil {
 		return nil, nil, err
@@ -97,6 +99,8 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	}
 
 	headerFrame := frame.(*h3.HeaderFrame)
+
+	logger.DebugLog("[WTS][Header Frames][%+v]", headerFrame)
 
 	req, protocol, err := headerFrame.WrapRequest()
 
