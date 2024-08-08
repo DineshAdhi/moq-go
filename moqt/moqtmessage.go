@@ -72,14 +72,15 @@ type MOQTMessage interface {
 	Parse(reader quicvarint.Reader) error
 	GetBytes() []byte
 	String() string
+	Type() uint64
 }
 
-func ParseMOQTMessage(reader quicvarint.Reader) (uint64, MOQTMessage, error) {
+func ParseMOQTMessage(reader quicvarint.Reader) (MOQTMessage, error) {
 
 	mtype, err := quicvarint.Read(reader)
 
 	if err != nil {
-		return mtype, nil, err
+		return nil, err
 	}
 
 	var msg MOQTMessage
@@ -91,13 +92,15 @@ func ParseMOQTMessage(reader quicvarint.Reader) (uint64, MOQTMessage, error) {
 		msg = &ServerSetup{}
 	case ANNOUNCE:
 		msg = &AnnounceMessage{}
+	case SUBSCRIBE:
+		msg = &SubscribeMessage{}
 	default:
-		return mtype, nil, fmt.Errorf("unkown MOQT Message %X", mtype)
+		return nil, fmt.Errorf("unkown MOQT Message %X", mtype)
 	}
 
 	msg.Parse(reader)
 
 	logger.DebugLog("[MOQT Message Parsed][%+v]", msg)
 
-	return mtype, msg, nil
+	return msg, nil
 }

@@ -3,6 +3,7 @@ package h3
 import (
 	"bytes"
 	"crypto/tls"
+	"moq-go/logger"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -31,7 +32,8 @@ func (hframe *HeaderFrame) Parse(reader quicvarint.Reader) error {
 	hfs, err := decoder.DecodeFull(data)
 
 	if err != nil {
-		return nil
+		logger.DebugLog("[Error Parsing HFs][Data - %s]", string(data))
+		return err
 	}
 
 	hframe.hfs = hfs

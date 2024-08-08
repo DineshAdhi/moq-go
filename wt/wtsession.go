@@ -82,8 +82,6 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	rrStream, err := quicConn.AcceptStream(context.TODO()) // Request-Response Stream
 	rreader := quicvarint.NewReader(rrStream)
 
-	logger.DebugLog("[RR Stream Accepted]")
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -133,8 +131,8 @@ func (wts *WTSession) AcceptSession() {
 	wts.ResponseWriter.WriteHeader(200)
 }
 
-func (wts *WTSession) AcceptStream() (quic.Stream, error) {
-	stream, err := wts.quicConn.AcceptStream(context.TODO())
+func (wts *WTSession) AcceptStream(context context.Context) (quic.Stream, error) {
+	stream, err := wts.quicConn.AcceptStream(context)
 	reader := quicvarint.NewReader(stream)
 
 	if err != nil {
@@ -154,8 +152,8 @@ func (wts *WTSession) AcceptStream() (quic.Stream, error) {
 	return stream, err
 }
 
-func (wts *WTSession) AcceptUniStream() (quic.ReceiveStream, error) {
-	stream, err := wts.quicConn.AcceptUniStream(context.TODO())
+func (wts *WTSession) AcceptUniStream(context context.Context) (quic.ReceiveStream, error) {
+	stream, err := wts.quicConn.AcceptUniStream(context)
 	reader := quicvarint.NewReader(stream)
 
 	if err != nil {
@@ -173,4 +171,8 @@ func (wts *WTSession) AcceptUniStream() (quic.ReceiveStream, error) {
 	}
 
 	return stream, err
+}
+
+func (wts *WTSession) CloseWithError(errcode quic.ApplicationErrorCode, phrase string) error {
+	return wts.quicConn.CloseWithError(errcode, phrase)
 }

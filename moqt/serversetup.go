@@ -11,6 +11,10 @@ type ServerSetup struct {
 	Params          Parameters
 }
 
+func (setup ServerSetup) Type() uint64 {
+	return SERVER_SETUP
+}
+
 func (setup ServerSetup) GetBytes() []byte {
 	var data []byte
 

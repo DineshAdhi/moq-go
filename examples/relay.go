@@ -5,8 +5,6 @@ import (
 	"moq-go/moqt"
 	"moq-go/wt"
 	"net/http"
-
-	"github.com/quic-go/quic-go/quicvarint"
 )
 
 const LISTENADDR = "0.0.0.0:4443"
@@ -14,11 +12,7 @@ const LISTENADDR = "0.0.0.0:4443"
 const CERTPATH = "./certs/localhost.crt"
 const KEYPATH = "./certs/localhost.key"
 
-var ALPNS = []string{"h3"} // Application Layer Protocols ["H3" - WebTransport]
-
-var DEFAULT_SERVER_SETUP = moqt.ServerSetup{SelectedVersion: moqt.DRAFT_03, Params: moqt.Parameters{
-	moqt.ROLE_PARAM: &moqt.IntParameter{moqt.ROLE_PARAM, moqt.ROLE_PUBSUB},
-}}
+var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 
 func main() {
 
@@ -26,55 +20,11 @@ func main() {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		controlStream, err := wts.AcceptStream()
-		controlReader := quicvarint.NewReader(controlStream)
-
-		if err != nil {
-			logger.ErrorLog("[Error Accepting Stream from WTS]%s", err)
-			return
+		moqtsession := moqt.MOQTSession{
+			Conn: wts,
 		}
 
-		// 1. Client Setup Parsing
-
-		mtype, msg, err := moqt.ParseMOQTMessage(controlReader)
-
-		if err != nil {
-			logger.ErrorLog("[Error Receiving MOQT Message][%s]", err)
-			return
-		}
-
-		if mtype != moqt.CLIENT_SETUP {
-			logger.ErrorLog("[Client Setup Error][Unexpected MOQT Message][Received - %s(%X)]", moqt.GetMoqMessageString(mtype), mtype)
-			return
-		}
-
-		clientSetup := msg.(*moqt.ClientSetup)
-
-		if !clientSetup.CheckDraftSupport() {
-			logger.ErrorLog("[Client Setup Error][Unsupported Draft Versions][%+v]", clientSetup.SupportedVersions)
-			return
-		}
-
-		logger.InfoLog("[Received Client Setup][%s]", clientSetup.String())
-
-		// 2. Server Setup Dispatching
-
-		serverSetup := DEFAULT_SERVER_SETUP
-		_, err = controlStream.Write(serverSetup.GetBytes())
-
-		if err != nil {
-			logger.ErrorLog("[Server Setup Dispatch Error][%s]", err)
-			return
-		}
-
-		logger.InfoLog("[Sent Server Setup][%s]", serverSetup.String())
-
-		// 3. Wait for Announce
-
-		mtype, msg, err = moqt.ParseMOQTMessage(controlReader)
-
-		logger.InfoLog("%s", msg.String())
-
+		moqtsession.Serve()
 	})
 
 	wtserver := wt.WTServer{

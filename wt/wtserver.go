@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"moq-go/logger"
+	"moq-go/moqt"
 	"net/http"
 
 	"github.com/quic-go/quic-go"
@@ -52,7 +53,20 @@ func (wtserver *WTServer) Run() error {
 			return err
 		}
 
-		go wtserver.handleConnection(quicConn)
+		alpn := quicConn.ConnectionState().TLS.NegotiatedProtocol
+
+		logger.DebugLog("[New QUIC Conn][ALPN - %s][Addr - %s]", alpn, quicConn.RemoteAddr().String())
+
+		switch alpn {
+		case "moq-00":
+			logger.InfoLog("[Got MOQ Conn]")
+			wts := moqt.MOQTSession{Conn: quicConn}
+			go wts.Serve()
+		case "h3":
+			go wtserver.handleConnection(quicConn)
+		default:
+			logger.ErrorLog("Unknown ALPN")
+		}
 	}
 }
 

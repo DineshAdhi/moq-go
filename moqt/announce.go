@@ -11,6 +11,10 @@ type AnnounceMessage struct {
 	params         Parameters
 }
 
+func (a AnnounceMessage) Type() uint64 {
+	return ANNOUNCE
+}
+
 func (a *AnnounceMessage) Parse(r quicvarint.Reader) error {
 
 	namelen, err := quicvarint.Read(r)
@@ -42,6 +46,7 @@ func (a AnnounceMessage) GetBytes() []byte {
 	var data []byte
 
 	namebytes := []byte(a.tracknamespace)
+	data = quicvarint.Append(data, ANNOUNCE)
 	data = quicvarint.Append(data, uint64(len(namebytes)))
 	data = append(data, namebytes...)
 

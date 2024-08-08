@@ -11,6 +11,25 @@ type StringParameter struct {
 	pvalue string
 }
 
+func ParseVarIntString(reader quicvarint.Reader) (string, error) {
+	len, err := quicvarint.Read(reader)
+
+	if err != nil {
+		return "", err
+	}
+
+	data := make([]byte, len)
+	n, err := reader.Read(data)
+
+	if err != nil {
+		return "", err
+	}
+
+	str := string(data[:n])
+
+	return str, nil
+}
+
 func (param StringParameter) Type() uint64 {
 	return param.ptype
 }
@@ -20,21 +39,13 @@ func (param StringParameter) Value() interface{} {
 }
 
 func (param *StringParameter) Parse(reader quicvarint.Reader) error {
-
-	len, err := quicvarint.Read(reader)
-
-	if err != nil {
-		return err
-	}
-
-	data := make([]byte, len)
-	_, err = reader.Read(data)
+	str, err := ParseVarIntString(reader)
 
 	if err != nil {
 		return err
 	}
 
-	param.pvalue = string(data)
+	param.pvalue = str
 
 	return nil
 }

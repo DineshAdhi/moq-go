@@ -24,6 +24,16 @@ const (
 	DRAFT_03 = 0xff000003
 )
 
+const (
+	MOQERR_NOERROR               = uint64(0x0)
+	MOQERR_INTERNAL_ERROR        = uint64(0x1)
+	MOQERR_UNAUTHORIZED          = uint64(0x2)
+	MOQERR_PROTOCOL_VIOLATION    = uint64(0x3)
+	MOQERR_DUPLICATE_TRACK_ALIAS = uint64(0x4)
+	MOQERR_PARAM_LENGTH_MISMATCH = uint64(0x5)
+	MOQERR_GOAWAY_TIMEOUT        = uint64(0x10)
+)
+
 type Parameter interface {
 	Parse(reader quicvarint.Reader) error
 	Type() uint64

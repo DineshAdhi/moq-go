@@ -12,6 +12,10 @@ type ClientSetup struct {
 	Params            Parameters
 }
 
+func (setup ClientSetup) Type() uint64 {
+	return CLIENT_SETUP
+}
+
 func (setup *ClientSetup) GetBytes() []byte {
 	var data []byte
 
