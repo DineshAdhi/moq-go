@@ -2,12 +2,13 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/logger"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
 const (
+	OBJECT_STREAM        = 0x0
+	OBJECT_DATAGRAM      = 0x1
 	SUBSCRIBE            = 0x3
 	SUBSCRIBE_OK         = 0x4
 	SUBSCRIBE_ERROR      = 0x5
@@ -94,13 +95,13 @@ func ParseMOQTMessage(reader quicvarint.Reader) (MOQTMessage, error) {
 		msg = &AnnounceMessage{}
 	case SUBSCRIBE:
 		msg = &SubscribeMessage{}
+	case SUBSCRIBE_OK:
+		msg = &SubsribeOkMessage{}
 	default:
-		return nil, fmt.Errorf("unkown MOQT Message %X", mtype)
+		return nil, fmt.Errorf("unkown MOQT Message %s %+v", GetMoqMessageString(mtype), msg)
 	}
 
 	msg.Parse(reader)
-
-	logger.DebugLog("[MOQT Message Parsed][%+v]", msg)
 
 	return msg, nil
 }

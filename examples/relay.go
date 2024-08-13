@@ -1,10 +1,9 @@
 package main
 
 import (
+	"context"
 	"moq-go/logger"
 	"moq-go/moqt"
-	"moq-go/wt"
-	"net/http"
 )
 
 const LISTENADDR = "0.0.0.0:4443"
@@ -16,26 +15,19 @@ var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebT
 
 func main() {
 
-	http.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
-		wts := req.Body.(*wt.WTSession)
-		wts.AcceptSession()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		moqtsession := moqt.MOQTSession{
-			Conn: wts,
-		}
-
-		moqtsession.Serve()
-	})
-
-	wtserver := wt.WTServer{
+	listener := moqt.MOQTListener{
 		ListenAddr: LISTENADDR,
 		CertPath:   CERTPATH,
 		KeyPath:    KEYPATH,
 		ALPNS:      ALPNS,
 		QuicConfig: nil,
+		Ctx:        ctx,
 	}
 
-	err := wtserver.Run()
+	err := listener.Listen()
 
-	logger.ErrorLog("[WTS Error][%s]", err)
+	logger.ErrorLog("[Error MOQListener][%s]", err)
 }

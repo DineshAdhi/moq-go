@@ -30,6 +30,14 @@ func ParseVarIntString(reader quicvarint.Reader) (string, error) {
 	return str, nil
 }
 
+func GetBytesVarIntString(str string) []byte {
+	var data []byte
+	data = quicvarint.Append(data, uint64(len(str)))
+	data = append(data, str...)
+
+	return data
+}
+
 func (param StringParameter) Type() uint64 {
 	return param.ptype
 }

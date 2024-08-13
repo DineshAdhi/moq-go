@@ -91,6 +91,18 @@ func (s *SubscribeMessage) Parse(reader quicvarint.Reader) (err error) {
 
 func (s SubscribeMessage) GetBytes() []byte {
 	var data []byte
+
+	data = quicvarint.Append(data, SUBSCRIBE)
+	data = quicvarint.Append(data, s.SubscribeID)
+	data = quicvarint.Append(data, s.TrackAlias)
+	data = append(data, GetBytesVarIntString(s.TrackNamespace)...)
+	data = append(data, GetBytesVarIntString(s.TrackName)...)
+	data = append(data, s.StartGroup.GetBytes()...)
+	data = append(data, s.StartObject.GetBytes()...)
+	data = append(data, s.EndGroup.GetBytes()...)
+	data = append(data, s.EndObject.GetBytes()...)
+	data = append(data, s.Params.GetBytes()...)
+
 	return data
 }
 

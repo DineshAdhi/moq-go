@@ -1,4 +1,4 @@
-package wt
+package moqt
 
 import (
 	"fmt"
@@ -60,7 +60,7 @@ func (sh *StreamHeader) Read(reader quicvarint.Reader) error {
 		sh.ID = id
 		return nil
 	default:
-		return fmt.Errorf("[Error Parsing Stream Header][Unknown Type]")
+		return fmt.Errorf("[Error Parsing Stream Header][Unknown Type - %X]", htype)
 	}
 }
 

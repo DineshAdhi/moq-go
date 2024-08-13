@@ -36,7 +36,7 @@ func InfoLog(format string, v ...any) {
 	_, file, line, ok := runtime.Caller(2)
 
 	if ok {
-		file = filepath.Base(file)
+		// file = filepath.Base(file)
 		info.SetPrefix("\033[1m\033[32m [INFO] \033[0m" + file + ":" + strconv.Itoa(line) + ": ")
 		info.Printf(format, v...)
 	}

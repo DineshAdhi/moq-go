@@ -45,7 +45,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	serverSettingFrame := h3.SettingsFrame{Settings: DEFAULT_SETTINGS}
 	serverstream.Write(serverSettingFrame.GetBytes())
 
-	logger.InfoLog("[Sending Server Settings][%s]", serverSettingFrame.GetString())
+	logger.DebugLog("[Sending Server Settings][%s]", serverSettingFrame.GetString())
 
 	// 2. Server accepts a Uni-Stream and reads the Client SettingsFrame
 
@@ -75,7 +75,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 
 	sFrame := frame.(*h3.SettingsFrame)
 
-	logger.InfoLog("[Received Client Settings][%s]", sFrame.GetString())
+	logger.DebugLog("[Received Client Settings][%s]", sFrame.GetString())
 
 	// 3. Server now accepts Bi-Direction Stream, read headers and respond on the same stream
 
@@ -128,45 +128,55 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 }
 
 func (wts *WTSession) AcceptSession() {
+
+	// Ignoring two Unistreams pushed by HTTP3 - Need to refer the draft to handle it better
+	go func() {
+		wts.quicConn.AcceptUniStream(context.TODO())
+		wts.quicConn.AcceptUniStream(context.TODO())
+	}()
+
+	logger.DebugLog("[Accepting WebTransport][STATUS - 200]")
 	wts.ResponseWriter.WriteHeader(200)
 }
 
-func (wts *WTSession) AcceptStream(context context.Context) (quic.Stream, error) {
-	stream, err := wts.quicConn.AcceptStream(context)
+func (wts *WTSession) AcceptStream(ctx context.Context) (quic.Stream, error) {
+	stream, err := wts.quicConn.AcceptStream(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
 	reader := quicvarint.NewReader(stream)
+	header := StreamHeader{}
+	header.Read(reader)
 
 	if err != nil {
 		return nil, err
 	}
 
-	ftype, _, err := h3.ParseFrame(reader)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if ftype != STREAM_WEBTRANSPORT_BI_STREAM {
+	if header.Type != STREAM_WEBTRANSPORT_BI_STREAM {
 		return nil, fmt.Errorf("[Stream Header Mismatch]")
 	}
 
 	return stream, err
 }
 
-func (wts *WTSession) AcceptUniStream(context context.Context) (quic.ReceiveStream, error) {
-	stream, err := wts.quicConn.AcceptUniStream(context)
+func (wts *WTSession) AcceptUniStream(ctx context.Context) (quic.ReceiveStream, error) {
+	stream, err := wts.quicConn.AcceptUniStream(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
 	reader := quicvarint.NewReader(stream)
+	header := StreamHeader{}
+	header.Read(reader)
 
 	if err != nil {
 		return nil, err
 	}
 
-	ftype, _, err := h3.ParseFrame(reader)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if ftype != STREAM_WEBTRANSPORT_UNI_STREAM {
+	if header.Type != STREAM_WEBTRANSPORT_UNI_STREAM {
 		return nil, fmt.Errorf("[Stream Header Mismatch]")
 	}
 
