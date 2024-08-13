@@ -1,55 +1,63 @@
 package moqt
 
 import (
-	"fmt"
 	"sync"
+	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 type SessionManager struct {
-	rwlock   sync.RWMutex
-	sessions map[string]*MOQTSession
+	sessionslock sync.RWMutex
+	nslock       sync.RWMutex
+	sessions     map[string]*MOQTSession
+	namespaces   map[string]*ControlHandler
+}
+
+func NewSessionManager() SessionManager {
+	sm := SessionManager{}
+	sm.sessionslock = sync.RWMutex{}
+	sm.nslock = sync.RWMutex{}
+	sm.namespaces = map[string]*ControlHandler{}
+	sm.sessions = map[string]*MOQTSession{}
+
+	rand.Seed(uint64(time.Now().UnixNano()))
+
+	return sm
 }
 
 func (sm *SessionManager) addSession(session *MOQTSession) {
-	sm.rwlock.Lock()
-	defer sm.rwlock.Unlock()
+	sm.sessionslock.Lock()
+	defer sm.sessionslock.Unlock()
 
 	sm.sessions[session.id] = session
 }
 
 func (sm *SessionManager) removeSession(session *MOQTSession) {
-	sm.rwlock.Lock()
-	defer sm.rwlock.Unlock()
+	sm.sessionslock.Lock()
+	defer sm.sessionslock.Unlock()
 
 	id := session.id
 	delete(sm.sessions, id)
 }
 
-func (sm *SessionManager) getSessionWithNamespace(ns string) (*MOQTSession, error) {
-	sm.rwlock.RLock()
-	defer sm.rwlock.RUnlock()
+func (sm *SessionManager) addNameSpace(ns string, ch *ControlHandler) {
+	sm.nslock.Lock()
+	defer sm.nslock.Unlock()
 
-	for _, session := range sm.sessions {
-		for namespace := range session.namespaces {
-
-			if namespace == ns {
-				return session, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("no such session registered with the namespace - %s", ns)
+	sm.namespaces[ns] = ch
 }
 
-func (sm *SessionManager) forwardSubscribeOk(msg *SubsribeOkMessage) {
-	sm.rwlock.RLock()
-	defer sm.rwlock.RUnlock()
+func (sm *SessionManager) removeNameSpace(ns string) {
+	sm.nslock.Lock()
+	defer sm.nslock.Unlock()
 
-	for _, session := range sm.sessions {
-		if session.role == ROLE_PUBLISHER {
-			continue
-		}
+	delete(sm.namespaces, ns)
+}
 
-		session.forwardSubscribeOk(msg)
-	}
+func (sm *SessionManager) getControlHandler(ns string) *ControlHandler {
+	sm.nslock.RLock()
+	defer sm.nslock.RUnlock()
+
+	return sm.namespaces[ns]
 }

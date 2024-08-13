@@ -124,6 +124,17 @@ func (params Parameters) Parse(reader quicvarint.Reader) error {
 	return nil
 }
 
+func (params Parameters) GetParameter(key uint64) Parameter {
+
+	for _, param := range params {
+		if param.Type() == key {
+			return param
+		}
+	}
+
+	return nil
+}
+
 func (params Parameters) GetBytes() []byte {
 	var data []byte
 	paramlen := uint64(len(params))

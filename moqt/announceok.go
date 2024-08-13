@@ -1,9 +1,21 @@
 package moqt
 
-import "github.com/quic-go/quic-go/quicvarint"
+import (
+	"fmt"
+
+	"github.com/quic-go/quic-go/quicvarint"
+)
 
 type AnnounceOkMessage struct {
 	tracknamespace string
+}
+
+func (msg AnnounceOkMessage) String() string {
+	return fmt.Sprintf("[%s][Track Namespace - %s]", GetMoqMessageString(msg.Type()), msg.tracknamespace)
+}
+
+func (msg AnnounceOkMessage) Type() uint64 {
+	return ANNOUNCE_OK
 }
 
 func (msg *AnnounceOkMessage) Parse(reader quicvarint.Reader) (err error) {
@@ -18,8 +30,4 @@ func (msg AnnounceOkMessage) GetBytes() []byte {
 	data = append(data, msg.tracknamespace...)
 
 	return data
-}
-
-func (msg *AnnounceOkMessage) GetAnnounceOk(a *AnnounceMessage) {
-	msg.tracknamespace = a.tracknamespace
 }

@@ -94,7 +94,7 @@ func (listener MOQTListener) handleMOQ(conn quic.Connection) {
 // Handles WebTransport based MOQ Sessions
 func (listener MOQTListener) handleWebTransport(conn quic.Connection) {
 
-	logger.DebugLog("[Incoming WebTransport Session][IP - %s]", conn.RemoteAddr())
+	logger.InfoLog("[Incoming WebTransport Session][IP - %s]", conn.RemoteAddr())
 
 	webtransportSession, req, err := wt.UpgradeWTS(conn)
 

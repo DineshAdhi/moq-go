@@ -58,5 +58,5 @@ func (setup ServerSetup) String() string {
 		str += fmt.Sprintf("%s ", param.String())
 	}
 
-	return str
+	return str + "]"
 }
