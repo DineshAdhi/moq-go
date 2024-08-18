@@ -52,7 +52,7 @@ func (setup *ServerSetup) Parse(reader quicvarint.Reader) error {
 func (setup ServerSetup) String() string {
 
 	str := fmt.Sprintf("[%s]", GetMoqMessageString(SERVER_SETUP))
-	str += fmt.Sprintf("[Selected Version - %x][{", setup.SelectedVersion)
+	str += fmt.Sprintf("[Selected Version - %X][{", setup.SelectedVersion)
 
 	for _, param := range setup.Params {
 		str += fmt.Sprintf("%s ", param.String())

@@ -96,9 +96,11 @@ func ParseMOQTMessage(reader quicvarint.Reader) (MOQTMessage, error) {
 	case SUBSCRIBE:
 		msg = &SubscribeMessage{}
 	case SUBSCRIBE_OK:
-		msg = &SubsribeOkMessage{}
+		msg = &SubscribeOkMessage{}
+	case STREAM_HEADER_GROUP:
+		msg = &StreamHeaderGroupMessage{}
 	default:
-		return nil, fmt.Errorf("unkown MOQT Message %s %+v", GetMoqMessageString(mtype), msg)
+		return nil, fmt.Errorf("unkown MOQT Message %d %+v", mtype, msg)
 	}
 
 	msg.Parse(reader)

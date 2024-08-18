@@ -18,6 +18,7 @@ type MOQTListener struct {
 	ALPNS      []string
 	QuicConfig *quic.Config
 	Ctx        context.Context
+	Role       uint64
 }
 
 func (listener *MOQTListener) Listen() error {
@@ -45,7 +46,7 @@ func (listener *MOQTListener) Listen() error {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		moqtsession := CreateMOQSession(wts)
+		moqtsession := CreateMOQSession(wts, listener.Role)
 		moqtsession.Serve()
 	}
 
@@ -86,7 +87,7 @@ func (listener MOQTListener) handleMOQ(conn quic.Connection) {
 
 	logger.DebugLog("[Incoming QUIC Session][IP - %s]", conn.RemoteAddr())
 
-	session := CreateMOQSession(conn)
+	session := CreateMOQSession(conn, listener.Role)
 
 	go session.Serve()
 }

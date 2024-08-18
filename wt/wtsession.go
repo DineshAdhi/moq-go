@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"moq-go/h3"
 	"moq-go/logger"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
@@ -19,6 +21,7 @@ type WTSession struct {
 	requestStream  quic.Stream
 	ResponseWriter *h3.ResponseWriter
 	context        context.Context
+	uniStreamsChan chan quic.ReceiveStream
 }
 
 var DEFAULT_SETTINGS = []h3.Setting{
@@ -60,7 +63,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	controlHeader.Read(clientreader)
 
 	if controlHeader.Type != STREAM_CONTROL {
-		return nil, nil, fmt.Errorf("[Client Control Header Type Mismatch][%x]", controlHeader.Type)
+		return nil, nil, fmt.Errorf("[Client Control Header Type Mismatch][%X]", controlHeader.Type)
 	}
 
 	ftype, frame, err := h3.ParseFrame(clientreader)
@@ -120,6 +123,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 		requestStream:  rrStream,
 		ResponseWriter: responseWriter,
 		context:        context.TODO(),
+		uniStreamsChan: make(chan quic.ReceiveStream, 1024),
 	}
 
 	req.Body = wts
@@ -128,15 +132,10 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 }
 
 func (wts *WTSession) AcceptSession() {
-
-	// Ignoring two Unistreams pushed by HTTP3 - Need to refer the draft to handle it better
-	go func() {
-		wts.quicConn.AcceptUniStream(context.TODO())
-		wts.quicConn.AcceptUniStream(context.TODO())
-	}()
-
 	logger.DebugLog("[Accepting WebTransport][STATUS - 200]")
 	wts.ResponseWriter.WriteHeader(200)
+
+	go wts.ProcesUniStreams()
 }
 
 func (wts *WTSession) AcceptStream(ctx context.Context) (quic.Stream, error) {
@@ -161,26 +160,53 @@ func (wts *WTSession) AcceptStream(ctx context.Context) (quic.Stream, error) {
 	return stream, err
 }
 
+func (wts *WTSession) ProcesUniStreams() {
+	for {
+		stream, err := wts.quicConn.AcceptUniStream(context.TODO())
+
+		if err != nil {
+			logger.ErrorLog("[WTS][Error Processing Uni Stream][%s]", err)
+			break
+		}
+
+		stream.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
+
+		header := StreamHeader{}
+		err = header.Read(quicvarint.NewReader(stream))
+
+		if err != nil {
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				continue // Ignoring (Timeout / Blocking) Streams for now. Probably H3 PUSH Streams.
+			}
+
+			logger.ErrorLog("[WTS][Error Reading UniStream][%s]", err)
+			return
+		}
+
+		logger.DebugLog("[WebTransport][New UniStream Accepted][ID - %X]", stream.StreamID())
+
+		wts.uniStreamsChan <- stream
+	}
+}
+
 func (wts *WTSession) AcceptUniStream(ctx context.Context) (quic.ReceiveStream, error) {
-	stream, err := wts.quicConn.AcceptUniStream(ctx)
+	return <-wts.uniStreamsChan, nil
+}
+
+func (wts *WTSession) OpenUniStreamSync(ctx context.Context) (quic.SendStream, error) {
+	stream, err := wts.quicConn.OpenUniStreamSync(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	reader := quicvarint.NewReader(stream)
 	header := StreamHeader{}
-	header.Read(reader)
+	header.Type = STREAM_WEBTRANSPORT_UNI_STREAM
+	header.ID = 0
 
-	if err != nil {
-		return nil, err
-	}
+	stream.Write(header.GetBytes())
 
-	if header.Type != STREAM_WEBTRANSPORT_UNI_STREAM {
-		return nil, fmt.Errorf("[Stream Header Mismatch]")
-	}
-
-	return stream, err
+	return stream, nil
 }
 
 func (wts *WTSession) CloseWithError(errcode quic.ApplicationErrorCode, phrase string) error {

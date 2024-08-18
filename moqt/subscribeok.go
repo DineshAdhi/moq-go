@@ -15,21 +15,21 @@ import (
 //   [Largest Object ID (i)]
 // }
 
-type SubsribeOkMessage struct {
-	id              uint64
+type SubscribeOkMessage struct {
+	SubscribeID     uint64
 	expires         uint64
 	contentexists   uint8
 	largestGroupId  uint64
 	largestObjectId uint64
 }
 
-func (s SubsribeOkMessage) Type() uint64 {
+func (s SubscribeOkMessage) Type() uint64 {
 	return SUBSCRIBE_OK
 }
 
-func (s *SubsribeOkMessage) Parse(reader quicvarint.Reader) (err error) {
+func (s *SubscribeOkMessage) Parse(reader quicvarint.Reader) (err error) {
 
-	if s.id, err = quicvarint.Read(reader); err != nil {
+	if s.SubscribeID, err = quicvarint.Read(reader); err != nil {
 		return err
 	}
 
@@ -54,11 +54,11 @@ func (s *SubsribeOkMessage) Parse(reader quicvarint.Reader) (err error) {
 	return nil
 }
 
-func (s SubsribeOkMessage) GetBytes() []byte {
+func (s SubscribeOkMessage) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, SUBSCRIBE_OK)
-	data = quicvarint.Append(data, s.id)
+	data = quicvarint.Append(data, s.SubscribeID)
 	data = quicvarint.Append(data, s.expires)
 	data = append(data, s.contentexists)
 
@@ -70,6 +70,17 @@ func (s SubsribeOkMessage) GetBytes() []byte {
 	return data
 }
 
-func (s SubsribeOkMessage) String() string {
-	return fmt.Sprintf("[SubscribeOK][ID - %X][Expires - %d][Content Exists - %d][L Group Id / Object Id - %d / %d]", s.id, s.expires, s.contentexists, s.largestObjectId, s.largestGroupId)
+func (s SubscribeOkMessage) String() string {
+	return fmt.Sprintf("[SubscribeOK][ID - %X][Expires - %d][Content Exists - %d][L Group Id / Object Id - %d / %d]", s.SubscribeID, s.expires, s.contentexists, s.largestObjectId, s.largestGroupId)
+}
+
+func GetSubOKMessage(id uint64) SubscribeOkMessage {
+	okmsg := SubscribeOkMessage{}
+	okmsg.SubscribeID = id
+	okmsg.expires = 0
+	okmsg.contentexists = 1
+	okmsg.largestGroupId = 0
+	okmsg.largestObjectId = 0
+
+	return okmsg
 }

@@ -93,7 +93,7 @@ func (setup ClientSetup) String() string {
 func (setup ClientSetup) CheckDraftSupport() bool {
 
 	for _, version := range setup.SupportedVersions {
-		if version == DRAFT_03 {
+		if version == DRAFT_04 {
 			return true
 		}
 	}

@@ -25,6 +25,7 @@ func main() {
 		ALPNS:      ALPNS,
 		QuicConfig: nil,
 		Ctx:        ctx,
+		Role:       moqt.ROLE_PUBSUB,
 	}
 
 	err := listener.Listen()

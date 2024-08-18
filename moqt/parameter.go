@@ -22,6 +22,7 @@ const (
 	DRAFT_01 = 0xff000001
 	DRAFT_02 = 0xff000002
 	DRAFT_03 = 0xff000003
+	DRAFT_04 = 0xff000004
 )
 
 const (
@@ -52,6 +53,19 @@ func GetParamKeyString(param Parameter) string {
 		return "PATH"
 	default:
 		return "UNKNOWN PARAM"
+	}
+}
+
+func GetRoleStringVarInt(p uint64) string {
+	switch p {
+	case ROLE_PUBLISHER:
+		return string("ROLE_PUBLISHER")
+	case ROLE_SUBSCRIBER:
+		return string("ROLE_SUBCRIBER")
+	case ROLE_PUBSUB:
+		return string("ROLE_PUB_SUB")
+	default:
+		return string("UNKNOWN_ROLE")
 	}
 }
 

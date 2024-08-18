@@ -2,6 +2,7 @@ package moqt
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -11,23 +12,47 @@ import (
 // 	Track Alias (i),
 // 	Track Namespace (b),
 // 	Track Name (b),
-// 	StartGroup (Location),
-// 	StartObject (Location),
-// 	EndGroup (Location),
-// 	EndObject (Location),
+// 	Filter Type (i),
+// 	[StartGroup (i),
+// 	 StartObject (i)],
+// 	[EndGroup (i),
+// 	 EndObject (i)],
 // 	Number of Parameters (i),
-// 	Track Request Parameters (..) ...
+// 	Subscribe Parameters (..) ...
 //   }
+
+const (
+	LatestGroup   = uint64(0x1)
+	LatestObject  = uint64(0x2)
+	AbsoluteStart = uint64(0x3)
+	AbsoluteRange = uint64(0x4)
+)
+
+func GetFilterType(ftype uint64) string {
+	switch ftype {
+	case LatestGroup:
+		return "LatestGroup"
+	case LatestObject:
+		return "LatestObject"
+	case AbsoluteStart:
+		return "AbsoluteStart"
+	case AbsoluteRange:
+		return "AbsoluteRange"
+	default:
+		return "UKNOWN FILTER TYPE"
+	}
+}
 
 type SubscribeMessage struct {
 	SubscribeID    uint64
 	TrackAlias     uint64
 	TrackNamespace string
 	TrackName      string
-	StartGroup     Location
-	StartObject    Location
-	EndGroup       Location
-	EndObject      Location
+	FilterType     uint64
+	StartGroup     uint64
+	StartObject    uint64
+	EndGroup       uint64
+	EndObject      uint64
 	Params         Parameters
 }
 
@@ -49,32 +74,41 @@ func (s *SubscribeMessage) Parse(reader quicvarint.Reader) (err error) {
 		return err
 	}
 
-	s.StartGroup = Location{}
-	err = s.StartGroup.Parse(reader)
-
-	if err != nil {
+	if s.FilterType, err = quicvarint.Read(reader); err != nil {
 		return err
 	}
 
-	s.StartObject = Location{}
-	err = s.StartObject.Parse(reader)
+	if s.FilterType == AbsoluteStart || s.FilterType == AbsoluteRange {
 
-	if err != nil {
-		return err
+		s.StartGroup, err = quicvarint.Read(reader)
+
+		if err != nil {
+			return err
+		}
 	}
 
-	s.EndGroup = Location{}
-	err = s.EndGroup.Parse(reader)
+	if s.FilterType == AbsoluteStart || s.FilterType == AbsoluteRange {
+		s.StartObject, err = quicvarint.Read(reader)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
-	s.EndObject = Location{}
-	err = s.EndObject.Parse(reader)
+	if s.FilterType == AbsoluteRange {
+		s.EndGroup, err = quicvarint.Read(reader)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+	}
+
+	if s.FilterType == AbsoluteRange {
+		s.EndObject, err = quicvarint.Read(reader)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	params := Parameters{}
@@ -97,17 +131,41 @@ func (s SubscribeMessage) GetBytes() []byte {
 	data = quicvarint.Append(data, s.TrackAlias)
 	data = append(data, GetBytesVarIntString(s.TrackNamespace)...)
 	data = append(data, GetBytesVarIntString(s.TrackName)...)
-	data = append(data, s.StartGroup.GetBytes()...)
-	data = append(data, s.StartObject.GetBytes()...)
-	data = append(data, s.EndGroup.GetBytes()...)
-	data = append(data, s.EndObject.GetBytes()...)
+	data = quicvarint.Append(data, s.FilterType)
+
+	if s.FilterType == AbsoluteStart || s.FilterType == AbsoluteRange {
+		data = quicvarint.Append(data, s.StartGroup)
+	}
+
+	if s.FilterType == AbsoluteStart || s.FilterType == AbsoluteRange {
+		data = quicvarint.Append(data, s.StartObject)
+	}
+
+	if s.FilterType == AbsoluteRange {
+		data = quicvarint.Append(data, s.EndGroup)
+	}
+
+	if s.FilterType == AbsoluteRange {
+		data = quicvarint.Append(data, s.EndObject)
+	}
+
 	data = append(data, s.Params.GetBytes()...)
 
 	return data
 }
 
+// Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
+func (s SubscribeMessage) getCacheKey() string {
+	return fmt.Sprintf("%s_%s_%s", s.TrackNamespace, s.TrackName, strconv.Itoa(int(s.TrackAlias)))
+}
+
 func (s SubscribeMessage) String() string {
-	str := fmt.Sprintf("[%s][ID - %x][Track Name - %s][Name Space - %s][%s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, s.TrackName, s.TrackNamespace, s.Params.String())
+	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][Track Name - %s][Track Alias - %X][Name Space - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.TrackName, s.TrackAlias, s.TrackNamespace)
+
+	if len(s.Params) > 0 {
+		str += s.Params.String()
+	}
+
 	return str
 }
 
