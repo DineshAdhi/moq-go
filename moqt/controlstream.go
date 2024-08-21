@@ -121,18 +121,26 @@ func (s *MOQTSession) handleSubscribe(submsg *SubscribeMessage) {
 
 	logger.InfoLog("[%s][SUBSCRIBE][%+v]", s.id, submsg)
 
-	subid := submsg.SubscribeID
-	tracknamespace := submsg.TrackNamespace
-	cachekey := submsg.getCacheKey()
+	tracknamespace := submsg.ObjectStreamNamespace
+	streamid := submsg.getstreamid()
 
 	if s.role == ROLE_PUBLISHER {
 		// TODO : Handle Subscribe for Publisher Handling
 	} else if s.role == ROLE_PUBSUB {
 
-		s.DownStreamSubIDMap[cachekey] = subid
+		s.DownStreamSubMap[streamid] = *submsg
 
-		if pubslisher := sm.getPublisher(tracknamespace); pubslisher != nil {
-			pubslisher.sendSubscribe(*submsg)
+		if publisher := sm.getPublisher(tracknamespace); publisher != nil {
+
+			if cd, ok := publisher.ObjectStreamMap[streamid]; ok { // Publisher already has the Cache Data. Ignore sending SUBSCRIBE
+
+				s.SendSubcribeOk(streamid, GetSubOKMessage(submsg.SubscribeID))
+				s.SubscribeToStream(cd)
+
+			} else {
+				publisher.sendSubscribe(*submsg)
+			}
+
 		} else {
 			logger.ErrorLog("[Subscribe Error][No publisher with namespace - %s]", tracknamespace)
 			return
@@ -148,13 +156,23 @@ func (s *MOQTSession) handleSubOk(okmsg *SubscribeOkMessage) {
 	if s.role == ROLE_SUBSCRIBER || s.role == ROLE_PUBSUB {
 
 		subid := okmsg.SubscribeID
+		submsg, ok := s.UpStreamSubMap[subid]
+		streamid := submsg.getstreamid()
 
-		if cachekey, ok := s.UpStreamSubIDMap[subid]; ok {
-			sm.notifyIncomingStreams(cachekey)
-			delete(s.UpStreamSubIDMap, subid)
-		} else {
-			logger.ErrorLog("[%s][Received SubOK SubId for Unregistered Cache Key][ID - %X]", s.id, subid)
+		if !ok {
+			logger.ErrorLog("[%s][Received Invalid SUBSCRIBE OK][Sub Id - %X]", s.id, subid)
+			return
 		}
+
+		_, ok = s.UpstreamSubOkMap[subid]
+
+		if ok {
+			logger.ErrorLog("[%s][Received Duplicate SUBSCRIKE OK][Sub Id - %X]", s.id, subid)
+			return
+		}
+
+		s.UpstreamSubOkMap[subid] = streamid
+		sm.ForwardSubscribeOk(streamid, *okmsg)
 	} else {
 		s.Close(MOQERR_PROTOCOL_VIOLATION, fmt.Sprintf("Receive SubOk on a Unsupported Role : %s", GetRoleStringVarInt(s.role)))
 	}

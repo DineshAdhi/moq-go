@@ -56,7 +56,7 @@ func (a AnnounceMessage) GetBytes() []byte {
 }
 
 func (a AnnounceMessage) String() string {
-	str := fmt.Sprintf("[ANNOUNCE Message][Track Namespace - %s]", a.tracknamespace)
+	str := fmt.Sprintf("[ANNOUNCE Message][ObjectStream Namespace - %s]", a.tracknamespace)
 
 	if len(a.params) > 0 {
 		str += fmt.Sprintf("[Params - %s]", a.params.String())

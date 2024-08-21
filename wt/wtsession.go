@@ -169,7 +169,7 @@ func (wts *WTSession) ProcesUniStreams() {
 			break
 		}
 
-		stream.SetReadDeadline(time.Now().Add(time.Millisecond * 100))
+		stream.SetReadDeadline(time.Now().Add(time.Second * 1))
 
 		header := StreamHeader{}
 		err = header.Read(quicvarint.NewReader(stream))
@@ -183,7 +183,9 @@ func (wts *WTSession) ProcesUniStreams() {
 			return
 		}
 
-		logger.DebugLog("[WebTransport][New UniStream Accepted][ID - %X]", stream.StreamID())
+		stream.SetReadDeadline(time.Time{})
+
+		// logger.DebugLog("[WebTransport][New UniStream Accepted][ID - %X]", stream.StreamID())
 
 		wts.uniStreamsChan <- stream
 	}
@@ -195,6 +197,22 @@ func (wts *WTSession) AcceptUniStream(ctx context.Context) (quic.ReceiveStream, 
 
 func (wts *WTSession) OpenUniStreamSync(ctx context.Context) (quic.SendStream, error) {
 	stream, err := wts.quicConn.OpenUniStreamSync(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	header := StreamHeader{}
+	header.Type = STREAM_WEBTRANSPORT_UNI_STREAM
+	header.ID = 0
+
+	stream.Write(header.GetBytes())
+
+	return stream, nil
+}
+
+func (wts *WTSession) OpenUniStream() (quic.SendStream, error) {
+	stream, err := wts.quicConn.OpenUniStream()
 
 	if err != nil {
 		return nil, err

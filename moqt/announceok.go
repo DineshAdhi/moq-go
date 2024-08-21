@@ -11,7 +11,7 @@ type AnnounceOkMessage struct {
 }
 
 func (msg AnnounceOkMessage) String() string {
-	return fmt.Sprintf("[%s][Track Namespace - %s]", GetMoqMessageString(msg.Type()), msg.tracknamespace)
+	return fmt.Sprintf("[%s][ObjectStream Namespace - %s]", GetMoqMessageString(msg.Type()), msg.tracknamespace)
 }
 
 func (msg AnnounceOkMessage) Type() uint64 {

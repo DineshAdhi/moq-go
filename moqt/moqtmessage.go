@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	OBJECT_STREAM        = 0x0
-	OBJECT_DATAGRAM      = 0x1
 	SUBSCRIBE            = 0x3
 	SUBSCRIBE_OK         = 0x4
 	SUBSCRIBE_ERROR      = 0x5
@@ -24,8 +22,6 @@ const (
 	GOAWAY               = 0x10
 	CLIENT_SETUP         = 0x40
 	SERVER_SETUP         = 0x41
-	STREAM_HEADER_TRACK  = 0x50
-	STREAM_HEADER_GROUP  = 0x51
 )
 
 func GetMoqMessageString(mtype uint64) string {
@@ -97,8 +93,6 @@ func ParseMOQTMessage(reader quicvarint.Reader) (MOQTMessage, error) {
 		msg = &SubscribeMessage{}
 	case SUBSCRIBE_OK:
 		msg = &SubscribeOkMessage{}
-	case STREAM_HEADER_GROUP:
-		msg = &StreamHeaderGroupMessage{}
 	default:
 		return nil, fmt.Errorf("unkown MOQT Message %d %+v", mtype, msg)
 	}

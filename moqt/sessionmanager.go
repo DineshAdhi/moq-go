@@ -14,7 +14,7 @@ type SessionManager struct {
 	cachelock    sync.RWMutex
 	sessions     map[string]*MOQTSession
 	namespaces   map[string]*MOQTSession
-	CacheData    map[string]*CacheData
+	ObjectStream map[string]*ObjectStream
 }
 
 func NewSessionManager() *SessionManager {
@@ -23,7 +23,7 @@ func NewSessionManager() *SessionManager {
 	sm.nslock = sync.RWMutex{}
 	sm.namespaces = map[string]*MOQTSession{}
 	sm.sessions = map[string]*MOQTSession{}
-	sm.CacheData = map[string]*CacheData{}
+	sm.ObjectStream = map[string]*ObjectStream{}
 
 	rand.Seed(uint64(time.Now().UnixNano()))
 
@@ -68,39 +68,26 @@ func (sm *SessionManager) getPublisher(ns string) *MOQTSession {
 	return sm.namespaces[ns]
 }
 
-func (sm *SessionManager) notifyIncomingStreams(cacheKey string) {
-	sm.sessionslock.Lock()
-	defer sm.sessionslock.Unlock()
-
-	cd := sm.getCacheData(cacheKey)
+func (sm *SessionManager) ForwardSubscribeOk(streamid string, okmsg SubscribeOkMessage) {
+	sm.sessionslock.RLock()
+	defer sm.sessionslock.RUnlock()
 
 	for _, session := range sm.sessions {
-		if _, ok := session.DownStreamSubIDMap[cacheKey]; ok {
-			go session.sendSubOkMsg(cd)
-			session.incomingStreams <- cd
+		if _, ok := session.DownStreamSubMap[streamid]; ok {
+			session.SendSubcribeOk(streamid, okmsg)
 		}
 	}
 }
 
-func (sm *SessionManager) getCacheData(cachekey string) *CacheData {
+func (sm *SessionManager) NotifyObjectStream(os *ObjectStream) {
 	sm.cachelock.RLock()
 	defer sm.cachelock.RUnlock()
 
-	return sm.CacheData[cachekey]
-}
+	streamid := os.streamid
 
-func (sm *SessionManager) addCacheData(cachekey string, cd *CacheData) {
-	sm.cachelock.Lock()
-	defer sm.cachelock.Unlock()
-
-	logger.InfoLog("[New Cache Details][%s]", cachekey)
-
-	sm.CacheData[cachekey] = cd
-}
-
-func (sm *SessionManager) removeCacheData(cachekey string) {
-	sm.cachelock.Lock()
-	defer sm.cachelock.Unlock()
-
-	delete(sm.CacheData, cachekey)
+	for _, session := range sm.sessions {
+		if _, ok := session.DownStreamSubOkMap[streamid]; ok {
+			session.SubscribeToStream(os)
+		}
+	}
 }
