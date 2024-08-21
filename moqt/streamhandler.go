@@ -10,6 +10,8 @@ import (
 
 const OBJECT_READ_DATA_LEN = 1024
 
+var DUMMY_ITR = 0
+
 func (s *MOQTSession) handleObjectStreams() {
 
 	for {
@@ -49,11 +51,12 @@ func (s *MOQTSession) ServeObjectStream(unistream quic.ReceiveStream) {
 }
 
 func (s *MOQTSession) handleSubscribedChan() {
+
 	for {
 		delivery := <-s.ObjectChannel
 
 		stream := delivery.os
-		object := delivery.obj
+		object := delivery.object
 
 		if object != nil {
 			go s.DispatchObject(stream, object)

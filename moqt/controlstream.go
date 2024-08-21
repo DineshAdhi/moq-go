@@ -41,8 +41,6 @@ func (s *MOQTSession) ServeControlStream(cs quic.Stream) {
 			return
 		}
 
-		logger.DebugLog("[%s][MOQT Message]%s", s.id, moqtMessage.String())
-
 		if s.ishandshakedone {
 			s.handleControlMessage(moqtMessage)
 		} else {

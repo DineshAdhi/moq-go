@@ -145,8 +145,9 @@ func (s *MOQTSession) GetObjectStream(subid uint64) *ObjectStream {
 	}
 
 	streamid = submsg.getstreamid()
+	trackalias := submsg.ObjectStreamAlias
 
-	os := NewObjectStream(streamid)
+	os := NewObjectStream(streamid, trackalias)
 	s.ObjectStreamMap[streamid] = os
 
 	// Notify all sessions about new Cache Data
@@ -162,7 +163,7 @@ func (s *MOQTSession) SubscribeToStream(os *ObjectStream) {
 		return
 	}
 
-	logger.DebugLog("[%s][Subscribed to stream][%s]", os.streamid)
+	logger.DebugLog("[%s][Subscribed to stream][%s]", s.id, os.streamid)
 
 	os.AddSubscriber(s)
 

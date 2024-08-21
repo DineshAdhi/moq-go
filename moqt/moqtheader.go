@@ -71,7 +71,7 @@ func (gh *GroupHeader) GetTrackAlias() uint64 {
 }
 
 func (gh *GroupHeader) GetObjectKey() string {
-	return fmt.Sprintf("%s_%s_%s_%s", strconv.FormatUint(gh.Type(), 10), strconv.FormatUint(gh.SubscribeID, 10), strconv.FormatUint(gh.TrackAlias, 10), strconv.FormatUint(gh.GroupID, 10))
+	return fmt.Sprintf("%s_%s", strconv.FormatUint(gh.TrackAlias, 10), strconv.FormatUint(gh.GroupID, 10))
 }
 
 func (gh *GroupHeader) Parse(reader quicvarint.Reader) (err error) {

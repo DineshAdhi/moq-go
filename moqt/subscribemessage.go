@@ -2,7 +2,6 @@ package moqt
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -156,11 +155,11 @@ func (s SubscribeMessage) GetBytes() []byte {
 
 // Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
 func (s SubscribeMessage) getstreamid() string {
-	return fmt.Sprintf("%s_%s_%s", s.ObjectStreamNamespace, s.ObjectStreamName, strconv.Itoa(int(s.ObjectStreamAlias)))
+	return fmt.Sprintf("%s_%s", s.ObjectStreamNamespace, s.ObjectStreamName)
 }
 
 func (s SubscribeMessage) String() string {
-	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][ObjectStream Name - %s][ObjectStream Alias - %X][Name Space - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.ObjectStreamName, s.ObjectStreamAlias, s.ObjectStreamNamespace)
+	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][TrackName - %s][Track Alias - %X][NameSpace - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.ObjectStreamName, s.ObjectStreamAlias, s.ObjectStreamNamespace)
 
 	if len(s.Params) > 0 {
 		str += s.Params.String()
