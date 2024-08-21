@@ -185,8 +185,6 @@ func (wts *WTSession) ProcesUniStreams() {
 
 		stream.SetReadDeadline(time.Time{})
 
-		// logger.DebugLog("[WebTransport][New UniStream Accepted][ID - %X]", stream.StreamID())
-
 		wts.uniStreamsChan <- stream
 	}
 }

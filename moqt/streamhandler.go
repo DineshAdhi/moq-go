@@ -56,10 +56,10 @@ func (s *MOQTSession) handleSubscribedChan() {
 		delivery := <-s.ObjectChannel
 
 		stream := delivery.os
-		object := delivery.object
+		obj := delivery.object
 
-		if object != nil {
-			go s.DispatchObject(stream, object)
+		if obj != nil {
+			go s.DispatchObject(stream, obj)
 		} else {
 			logger.ErrorLog("Object not found")
 		}

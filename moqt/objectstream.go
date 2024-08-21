@@ -49,7 +49,7 @@ func (stream *ObjectStream) AddSubscriber(s *MOQTSession) {
 	}
 }
 
-func (stream *ObjectStream) NotifySubscribers(object *MOQTObject) {
+func (stream *ObjectStream) NotifySubscribers(object *MOQTObject, objkey string) {
 
 	stream.sublock.RLock()
 	defer stream.sublock.RUnlock()
@@ -66,7 +66,7 @@ func (stream *ObjectStream) addObject(object *MOQTObject) {
 	objkey := object.header.GetObjectKey()
 	stream.objects[objkey] = object
 
-	go stream.NotifySubscribers(object)
+	go stream.NotifySubscribers(object, objkey)
 }
 
 func (stream *ObjectStream) getObject(objkey string) *MOQTObject {
