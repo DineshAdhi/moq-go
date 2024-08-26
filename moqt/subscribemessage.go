@@ -155,7 +155,7 @@ func (s SubscribeMessage) GetBytes() []byte {
 
 // Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
 func (s SubscribeMessage) getstreamid() string {
-	return fmt.Sprintf("%s_%s", s.ObjectStreamNamespace, s.ObjectStreamName)
+	return fmt.Sprintf("%s_%s_%X", s.ObjectStreamNamespace, s.ObjectStreamName, s.ObjectStreamAlias)
 }
 
 func (s SubscribeMessage) String() string {
