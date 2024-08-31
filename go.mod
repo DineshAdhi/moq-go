@@ -8,6 +8,13 @@ require (
 )
 
 require (
+	filippo.io/mkcert v1.4.4 // indirect
+	golang.org/x/text v0.15.0 // indirect
+	howett.net/plist v1.0.0 // indirect
+	software.sslmate.com/src/go-pkcs12 v0.2.0 // indirect
+)
+
+require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20230821062121-407c9e7a662f // indirect
 	github.com/google/uuid v1.6.0
