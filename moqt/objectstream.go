@@ -2,9 +2,11 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/logger"
+
 	"strconv"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ObjectDelivery struct {
@@ -30,7 +32,7 @@ func NewObjectStream(streamid string, trackalias uint64) *ObjectStream {
 	os.sublock = &sync.RWMutex{}
 	os.subscribers = []*MOQTSession{}
 
-	logger.InfoLog("[New Object Stream][%s]", streamid)
+	log.Info().Msgf("[New Object Stream][%s]", streamid)
 
 	return os
 }

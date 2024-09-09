@@ -2,10 +2,11 @@ package moqt
 
 import (
 	"io"
-	"moq-go/logger"
+
 	"sync"
 
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -53,7 +54,7 @@ func (object *MOQTObject) ParseFromStream(reader quicvarint.Reader) {
 				return
 			}
 
-			logger.ErrorLog("[%s][Error Reading From MOQTObject][%s]", object.header.GetObjectKey(), err)
+			log.Error().Msgf("[%s][Error Reading From MOQTObject][%s]", object.header.GetObjectKey(), err)
 			return
 		}
 

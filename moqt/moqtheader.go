@@ -46,7 +46,7 @@ func ParseMOQTObjectHeader(reader quicvarint.Reader) (MOQTObjectHeader, error) {
 		return nil, fmt.Errorf("[Error While Parsing Stream Header][Type - %X][%s]", htype, err)
 	}
 
-	// logger.DebugLog("[MOQT ObjStream Header][%s]", objectHeader)
+	// log.Debug().Msgf("[MOQT ObjStream Header][%s]", objectHeader)
 
 	return objectHeader, nil
 }

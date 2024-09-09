@@ -2,10 +2,12 @@ package moqt
 
 import (
 	"io"
-	"moq-go/logger"
+
+	"time"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/rs/zerolog/log"
 )
 
 const OBJECT_READ_DATA_LEN = 1024
@@ -18,7 +20,7 @@ func (s *MOQTSession) handleObjectStreams() {
 		unistream, err := s.Conn.AcceptUniStream(s.ctx)
 
 		if err != nil {
-			logger.ErrorLog("[%s][Error Accepting Object Stream][%s]", s.id, err)
+			log.Error().Msgf("[%s][Error Accepting Object Stream][%s]", s.id, err)
 			return
 		}
 
@@ -33,21 +35,25 @@ func (s *MOQTSession) ServeObjectStream(unistream quic.ReceiveStream) {
 	header, err := ParseMOQTObjectHeader(reader)
 
 	if err != nil {
-		logger.ErrorLog("[%s][Object Stream][Error Reading Header]", s.id)
+		log.Error().Msgf("[%s][Object Stream][Error Reading Header]", s.id)
 		return
 	}
 
 	object := NewMOQTObject(header)
 	go object.ParseFromStream(reader)
 
-	objectStream := s.GetObjectStream(header.GetSubID())
+	for {
+		objectStream := s.GetObjectStream(header.GetSubID())
 
-	if objectStream == nil {
-		logger.ErrorLog("Stream not found")
-		return
+		if objectStream == nil {
+			log.Error().Msgf("Stream not found")
+			<-time.After(time.Second / 2)
+		} else {
+			go objectStream.addObject(object)
+			break
+		}
 	}
 
-	go objectStream.addObject(object)
 }
 
 func (s *MOQTSession) handleSubscribedChan() {
@@ -61,7 +67,7 @@ func (s *MOQTSession) handleSubscribedChan() {
 		if obj != nil {
 			go s.DispatchObject(stream, obj)
 		} else {
-			logger.ErrorLog("Object not found")
+			log.Error().Msgf("Object not found")
 		}
 	}
 }
@@ -70,7 +76,7 @@ func (s *MOQTSession) DispatchObject(os *ObjectStream, object *MOQTObject) {
 	unistream, err := s.Conn.OpenUniStream()
 
 	if err != nil {
-		logger.ErrorLog("[%s][Error dispatching object][%s]", s.id, err)
+		log.Error().Msgf("[%s][Error dispatching object][%s]", s.id, err)
 		return
 	}
 
@@ -91,7 +97,7 @@ func (s *MOQTSession) DispatchObject(os *ObjectStream, object *MOQTObject) {
 				break
 			}
 
-			logger.ErrorLog("[%s][Error Writing Object Payload]", s.id)
+			log.Error().Msgf("[%s][Error Writing Object Payload]", s.id)
 			return
 		}
 

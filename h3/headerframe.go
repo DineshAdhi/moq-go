@@ -3,7 +3,7 @@ package h3
 import (
 	"bytes"
 	"crypto/tls"
-	"moq-go/logger"
+
 	"net/http"
 	"net/url"
 	"strconv"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/quic-go/qpack"
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/rs/zerolog/log"
 )
 
 type HeaderFrame struct {
@@ -32,7 +33,7 @@ func (hframe *HeaderFrame) Parse(reader quicvarint.Reader) error {
 	hfs, err := decoder.DecodeFull(data)
 
 	if err != nil {
-		logger.DebugLog("[Error Parsing HFs][Data - %s]", string(data))
+		log.Debug().Msgf("[Error Parsing HFs][Data - %s]", string(data))
 		return err
 	}
 

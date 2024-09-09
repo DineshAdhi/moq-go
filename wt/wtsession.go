@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"moq-go/h3"
-	"moq-go/logger"
+
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/rs/zerolog/log"
 )
 
 type WTSession struct {
@@ -30,6 +31,8 @@ var DEFAULT_SETTINGS = []h3.Setting{
 	{Key: h3.WEBTRANSPORT_MAX_SESSIONS, Value: 1},
 	{Key: h3.SETTINGS_ENABLE_CONNECT_PROTOCOL, Value: 1},
 	{Key: h3.H3_DATAGRAM_05, Value: 1},
+	// {Key: h3.SETTINGS_QPACK_MAX_TABLE_CAPACITY, Value: 0},
+	// {Key: h3.SETTINGS_QPACK_BLOCKED_STREAMS, Value: 0},
 }
 
 func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
@@ -48,7 +51,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 	serverSettingFrame := h3.SettingsFrame{Settings: DEFAULT_SETTINGS}
 	serverstream.Write(serverSettingFrame.GetBytes())
 
-	logger.DebugLog("[Sending Server Settings][%s]", serverSettingFrame.GetString())
+	log.Debug().Msgf("[Sending Server Settings][%s]", serverSettingFrame.GetString())
 
 	// 2. Server accepts a Uni-Stream and reads the Client SettingsFrame
 
@@ -78,7 +81,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 
 	sFrame := frame.(*h3.SettingsFrame)
 
-	logger.DebugLog("[Received Client Settings][%s]", sFrame.GetString())
+	log.Debug().Msgf("[Received Client Settings][%s]", sFrame.GetString())
 
 	// 3. Server now accepts Bi-Direction Stream, read headers and respond on the same stream
 
@@ -101,7 +104,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 
 	headerFrame := frame.(*h3.HeaderFrame)
 
-	logger.DebugLog("[WTS][Header Frames][%+v]", headerFrame)
+	log.Debug().Msgf("[WTS][Header Frames][%+v]", headerFrame)
 
 	req, protocol, err := headerFrame.WrapRequest()
 
@@ -132,7 +135,7 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 }
 
 func (wts *WTSession) AcceptSession() {
-	logger.DebugLog("[Accepting WebTransport][STATUS - 200]")
+	log.Debug().Msgf("[Accepting WebTransport][STATUS - 200]")
 	wts.ResponseWriter.WriteHeader(200)
 
 	go wts.ProcesUniStreams()
@@ -165,7 +168,7 @@ func (wts *WTSession) ProcesUniStreams() {
 		stream, err := wts.quicConn.AcceptUniStream(context.TODO())
 
 		if err != nil {
-			logger.ErrorLog("[WTS][Error Processing Uni Stream][%s]", err)
+			log.Error().Msgf("[WTS][Error Processing Uni Stream][%s]", err)
 			break
 		}
 
@@ -179,7 +182,7 @@ func (wts *WTSession) ProcesUniStreams() {
 				continue // Ignoring (Timeout / Blocking) Streams for now. Probably H3 PUSH Streams.
 			}
 
-			logger.ErrorLog("[WTS][Error Reading UniStream][%s]", err)
+			log.Error().Msgf("[WTS][Error Reading UniStream][%s]", err)
 			return
 		}
 

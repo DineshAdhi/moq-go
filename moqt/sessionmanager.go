@@ -1,10 +1,10 @@
 package moqt
 
 import (
-	"moq-go/logger"
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"golang.org/x/exp/rand"
 )
 
@@ -36,7 +36,7 @@ func (sm *SessionManager) addSession(session *MOQTSession) {
 
 	sm.sessions[session.id] = session
 
-	logger.InfoLog("[%s][New MOQT Session]", session.id)
+	log.Info().Msgf("[%s][New MOQT Session]", session.id)
 }
 
 func (sm *SessionManager) removeSession(session *MOQTSession) {
