@@ -2,11 +2,13 @@ package moqt
 
 import (
 	"math/rand"
-	"moq-go/logger"
+
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/quic-go/quic-go"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/net/context"
 )
 
@@ -39,6 +41,7 @@ type MOQTSession struct {
 	ObjectStreamMap    map[string]*ObjectStream
 	SubscribedMap      map[string]bool
 	ObjectChannel      chan *ObjectDelivery
+	slogger            zerolog.Logger
 }
 
 func CreateMOQSession(conn MOQTConnection, role uint64) *MOQTSession {
@@ -46,7 +49,7 @@ func CreateMOQSession(conn MOQTConnection, role uint64) *MOQTSession {
 	session.Conn = conn
 	session.ctx, session.cancelFunc = context.WithCancel(context.Background())
 	session.id = strings.Split(uuid.New().String(), "-")[0]
-	session.role = role
+	session.role = 0
 	session.DownStreamSubMap = map[string]SubscribeMessage{}
 	session.DownStreamSubOkMap = map[string]uint64{}
 	session.UpStreamSubMap = map[uint64]SubscribeMessage{}
@@ -54,6 +57,8 @@ func CreateMOQSession(conn MOQTConnection, role uint64) *MOQTSession {
 	session.ObjectStreamMap = map[string]*ObjectStream{}
 	session.ObjectChannel = make(chan *ObjectDelivery, 1)
 	session.SubscribedMap = map[string]bool{}
+
+	session.slogger = log.With().Str("ID", session.id).Str("Role", GetRoleStringVarInt(session.role)).Logger()
 
 	sm.addSession(session)
 
@@ -66,31 +71,31 @@ func (s *MOQTSession) Close(code uint64, msg string) {
 
 	sm.removeSession(s)
 
-	logger.ErrorLog("[%s][Closing MOQT Session][Code - %d]%s", s.id, code, msg)
+	s.slogger.Error().Msgf("[%s][Closing MOQT Session][Code - %d]%s", s.id, code, msg)
 }
 
 func (s *MOQTSession) WriteControlMessage(msg MOQTMessage) {
 
 	if s.controlStream == nil {
-		logger.ErrorLog("[%s][Error Writing Control Message][CS is nil][HS - %+v]", s.id, s.ishandshakedone)
+		s.slogger.Error().Msgf("[Error Writing Control Message][CS is nil][HS - %+v]", s.ishandshakedone)
 		return
 	}
 
 	_, err := s.controlStream.Write(msg.GetBytes())
 
 	if err != nil {
-		logger.ErrorLog("[%s][Error Writing to Control][%s]", s.id, err)
+		s.slogger.Error().Msgf("[Error Writing to Control][%s]", err)
 	}
 
-	logger.DebugLog("[%s][Dipsatching CONTROL]%s", s.id, msg.String())
+	s.slogger.Debug().Msgf("[Dipsatching CONTROL]%s", msg.String())
 }
 
 func (s *MOQTSession) WriteStream(stream quic.SendStream, msg MOQTMessage) int {
-	logger.DebugLog("[%s][Dipsatching STREAM]%s", s.id, msg.String())
+	log.Debug().Msgf("[%s][Dipsatching STREAM]%s", s.id, msg.String())
 	n, err := stream.Write(msg.GetBytes())
 
 	if err != nil {
-		logger.ErrorLog("[%s][Error Writing to Stream][%s]", s.id, err)
+		log.Error().Msgf("[%s][Error Writing to Stream][%s]", s.id, err)
 		return 0
 	}
 
@@ -123,7 +128,7 @@ func (s *MOQTSession) SendSubcribeOk(streamid string, okmsg SubscribeOkMessage) 
 		return
 	}
 
-	logger.ErrorLog("[%s][Error Dispatching Subscrike OK][Unable to find Subscribe for Cache Key - %s]", s.id, streamid)
+	log.Error().Msgf("[%s][Error Dispatching Subscrike OK][Unable to find Subscribe for Cache Key - %s]", s.id, streamid)
 }
 
 func (s *MOQTSession) GetObjectStream(subid uint64) *ObjectStream {
@@ -159,11 +164,11 @@ func (s *MOQTSession) GetObjectStream(subid uint64) *ObjectStream {
 func (s *MOQTSession) SubscribeToStream(os *ObjectStream) {
 
 	if _, ok := s.SubscribedMap[os.streamid]; ok {
-		logger.DebugLog("[%s][Already Subscribed to Stream][Cache Key - %s]", s.id, os.streamid)
+		log.Debug().Msgf("[%s][Already Subscribed to Stream][Cache Key - %s]", s.id, os.streamid)
 		return
 	}
 
-	logger.DebugLog("[%s][Subscribed to stream][%s]", s.id, os.streamid)
+	log.Debug().Msgf("[%s][Subscribed to stream][%s]", s.id, os.streamid)
 
 	os.AddSubscriber(s)
 

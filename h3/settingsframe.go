@@ -8,14 +8,15 @@ import (
 )
 
 const (
-	SETTINGS_MAX_FIELD_SECTION_SIZE   = uint64(0x6)
-	SETTINGS_QPACK_MAX_TABLE_CAPACITY = uint64(0x1)
-	H3_DATAGRAM_05                    = uint64(0xffd277)
-	ENABLE_WEBTRANSPORT               = uint64(0x2b603742)
-	WEBTRANSPORT_MAX_SESSIONS         = uint64(0xc671706a)
-	SETTINGS_H3_DATAGRAM              = uint64(0x33)
-	SETTINGS_ENABLE_CONNECT_PROTOCOL  = uint64(0x08)
-	SETTINGS_QPACK_BLOCKED_STREAMS    = uint64(0x07)
+	SETTINGS_MAX_FIELD_SECTION_SIZE      = uint64(0x6)
+	SETTINGS_QPACK_MAX_TABLE_CAPACITY    = uint64(0x1)
+	H3_DATAGRAM_05                       = uint64(0xffd277)
+	ENABLE_WEBTRANSPORT                  = uint64(0x2b603742)
+	WEBTRANSPORT_MAX_SESSIONS            = uint64(0xc671706a)
+	SETTINGS_H3_DATAGRAM                 = uint64(0x33)
+	SETTINGS_ENABLE_CONNECT_PROTOCOL     = uint64(0x08)
+	SETTINGS_QPACK_BLOCKED_STREAMS       = uint64(0x07)
+	WEBTRANSPORT_MAX_SESSIONS_DEPRECATED = uint64(0x2b603743)
 )
 
 func GetSettingString(stype uint64) string {
@@ -36,8 +37,10 @@ func GetSettingString(stype uint64) string {
 		return "SETTINGS_ENABLE_CONNECT_PROTOCOL"
 	case SETTINGS_QPACK_BLOCKED_STREAMS:
 		return "SETTINGS_QPACK_BLOCKED_STREAMS"
+	case WEBTRANSPORT_MAX_SESSIONS_DEPRECATED:
+		return "WEBTRANSPORT_MAX_SESSIONS_DEPRECATED"
 	default:
-		return "Unknown Setting Type"
+		return fmt.Sprintf("Unknown Settings Type - %X", stype)
 	}
 }
 

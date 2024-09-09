@@ -3,11 +3,12 @@ package moqt
 import (
 	"context"
 	"crypto/tls"
-	"moq-go/logger"
+
 	"moq-go/wt"
 	"net/http"
 
 	"github.com/quic-go/quic-go"
+	"github.com/rs/zerolog/log"
 )
 
 type MOQTListener struct {
@@ -56,13 +57,13 @@ func (listener *MOQTListener) Listen() error {
 
 	// Now we do the actual listening..
 
-	logger.InfoLog("[QUIC Listener][Listening on - %s]", listener.ListenAddr)
+	log.Info().Msgf("[QUIC Listener][Listening on - %s]", listener.ListenAddr)
 
 	for {
 		quicConn, err := quiclistener.Accept(listener.Ctx)
 
 		if err != nil {
-			logger.DebugLog("[QUIC Listener][Error Acceping Quic Conn][%s]", err)
+			log.Debug().Msgf("[QUIC Listener][Error Acceping Quic Conn][%s]", err)
 			break
 		}
 
@@ -74,7 +75,7 @@ func (listener *MOQTListener) Listen() error {
 		case "h3":
 			listener.handleWebTransport(quicConn)
 		default:
-			logger.ErrorLog("[QUIC Listener][Uknonwn ALPN - %s]", alpn)
+			log.Error().Msgf("[QUIC Listener][Uknonwn ALPN - %s]", alpn)
 			quicConn.CloseWithError(quic.ApplicationErrorCode(MOQERR_INTERNAL_ERROR), "Internal Error - Unknown ALPN")
 		}
 	}
@@ -85,7 +86,7 @@ func (listener *MOQTListener) Listen() error {
 // Handles Plain QUIC based MOQ Sessions
 func (listener MOQTListener) handleMOQ(conn quic.Connection) {
 
-	logger.DebugLog("[Incoming QUIC Session][IP - %s]", conn.RemoteAddr())
+	log.Debug().Msgf("[Incoming QUIC Session][IP - %s]", conn.RemoteAddr())
 
 	session := CreateMOQSession(conn, listener.Role)
 
@@ -95,12 +96,12 @@ func (listener MOQTListener) handleMOQ(conn quic.Connection) {
 // Handles WebTransport based MOQ Sessions
 func (listener MOQTListener) handleWebTransport(conn quic.Connection) {
 
-	logger.InfoLog("[Incoming WebTransport Session][IP - %s]", conn.RemoteAddr())
+	log.Info().Msgf("[Incoming WebTransport Session][IP - %s]", conn.RemoteAddr())
 
 	webtransportSession, req, err := wt.UpgradeWTS(conn)
 
 	if err != nil {
-		logger.ErrorLog("[Error Upgrading to WTS][%s]", err)
+		log.Error().Msgf("[Error Upgrading to WTS][%s]", err)
 		return
 	}
 

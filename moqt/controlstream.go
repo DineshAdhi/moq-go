@@ -2,10 +2,10 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/logger"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/rs/zerolog/log"
 )
 
 func (s *MOQTSession) handleControlStream() {
@@ -61,15 +61,16 @@ func (s *MOQTSession) handleSetupMessage(msg MOQTMessage) {
 		}
 
 		if role := clientSetup.Params.GetParameter(ROLE_PARAM); role != nil {
-			s.id += "_" + GetRoleString(role)
+			s.role = role.Value().(uint64)
+			s.slogger = log.With().Str("ID", s.id).Str("Role", GetRoleStringVarInt(s.role)).Logger()
 		}
 
 		s.ishandshakedone = true
-		logger.InfoLog("[%s][Handshake Success]", s.id)
+		s.slogger.Info().Msgf("[%s][Handshake Success]", s.id)
 		s.WriteControlMessage(&DEFAULT_SERVER_SETUP)
 
 	default:
-		logger.ErrorLog("[Received Unknown Setup Message][Type - %s][%X]", GetMoqMessageString(msg.Type()), msg.Type())
+		log.Error().Msgf("[Received Unknown Setup Message][Type - %s][%X]", GetMoqMessageString(msg.Type()), msg.Type())
 	}
 }
 
@@ -99,9 +100,9 @@ func (s *MOQTSession) handleControlMessage(msg MOQTMessage) {
 
 func (s *MOQTSession) handleAnnounce(amsg *AnnounceMessage) {
 
-	logger.InfoLog("[%s][ANNOUNCE][%+v]", s.id, amsg)
+	log.Info().Msgf("[%s][ANNOUNCE][%+v]", s.id, amsg)
 
-	if s.role == ROLE_PUBSUB || s.role == ROLE_SUBSCRIBER {
+	if s.role == ROLE_PUBSUB || s.role == ROLE_PUBLISHER {
 
 		ns := amsg.tracknamespace
 		sm.addPublisher(ns, s)
@@ -111,20 +112,20 @@ func (s *MOQTSession) handleAnnounce(amsg *AnnounceMessage) {
 
 		s.WriteControlMessage(&okmsg)
 	} else {
-		s.Close(MOQERR_PROTOCOL_VIOLATION, fmt.Sprintf("Received Announce at Unsupported MOQT. Remote Role - %s", GetRoleStringVarInt(s.role)))
+		s.Close(MOQERR_PROTOCOL_VIOLATION, fmt.Sprintf("Received Announce at Unsupported  Remote Role - %s", GetRoleStringVarInt(s.role)))
 	}
 }
 
 func (s *MOQTSession) handleSubscribe(submsg *SubscribeMessage) {
 
-	logger.InfoLog("[%s][SUBSCRIBE][%+v]", s.id, submsg)
+	log.Info().Msgf("[%s][SUBSCRIBE][%+v]", s.id, submsg)
 
 	tracknamespace := submsg.ObjectStreamNamespace
 	streamid := submsg.getstreamid()
 
 	if s.role == ROLE_PUBLISHER {
 		// TODO : Handle Subscribe for Publisher Handling
-	} else if s.role == ROLE_PUBSUB {
+	} else if s.role == ROLE_PUBSUB || s.role == ROLE_SUBSCRIBER {
 
 		s.DownStreamSubMap[streamid] = *submsg
 
@@ -140,7 +141,7 @@ func (s *MOQTSession) handleSubscribe(submsg *SubscribeMessage) {
 			}
 
 		} else {
-			logger.ErrorLog("[Subscribe Error][No publisher with namespace - %s]", tracknamespace)
+			log.Error().Msgf("[Subscribe Error][No publisher with namespace - %s]", tracknamespace)
 			return
 		}
 
@@ -151,21 +152,23 @@ func (s *MOQTSession) handleSubscribe(submsg *SubscribeMessage) {
 
 func (s *MOQTSession) handleSubOk(okmsg *SubscribeOkMessage) {
 
-	if s.role == ROLE_SUBSCRIBER || s.role == ROLE_PUBSUB {
+	if s.role == ROLE_PUBLISHER || s.role == ROLE_PUBSUB {
 
 		subid := okmsg.SubscribeID
 		submsg, ok := s.UpStreamSubMap[subid]
 		streamid := submsg.getstreamid()
 
+		log.Info().Msgf("[%s][SUBSCRIBEOK][%s]", s.id, okmsg)
+
 		if !ok {
-			logger.ErrorLog("[%s][Received Invalid SUBSCRIBE OK][Sub Id - %X]", s.id, subid)
+			log.Error().Msgf("[%s][Received Invalid SUBSCRIBE OK][Sub Id - %X]", s.id, subid)
 			return
 		}
 
 		_, ok = s.UpstreamSubOkMap[subid]
 
 		if ok {
-			logger.ErrorLog("[%s][Received Duplicate SUBSCRIKE OK][Sub Id - %X]", s.id, subid)
+			log.Error().Msgf("[%s][Received Duplicate SUBSCRIKE OK][Sub Id - %X]", s.id, subid)
 			return
 		}
 
