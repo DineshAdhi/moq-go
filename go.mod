@@ -3,19 +3,15 @@ module moq-go
 go 1.22.5
 
 require (
-	github.com/quic-go/qpack v0.5.0
+	github.com/quic-go/qpack v0.5.1
 	github.com/quic-go/quic-go v0.45.1
+	github.com/rs/zerolog v1.33.0
 )
 
 require (
-	filippo.io/mkcert v1.4.4 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/rs/zerolog v1.33.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
-	howett.net/plist v1.0.0 // indirect
-	software.sslmate.com/src/go-pkcs12 v0.2.0 // indirect
 )
 
 require (

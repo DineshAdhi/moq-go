@@ -5,7 +5,7 @@ Simple Implentation of Media Over QUIC Transport (MOQT) in Go, in compliant with
 
 The Publisher and Consumer part are still under development. This repository currently has a working implementation of Relay.
 
-This MOQT library currently supports WebTransport Protocol. Support for QUIC based MOQT is underway.
+This MOQT library currently supports WebTransport and QUIC Protocols.
 
 # Setup
 

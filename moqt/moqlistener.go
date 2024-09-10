@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 
+	"moq-go/moqt/wire"
+
 	"moq-go/wt"
 	"net/http"
 
@@ -47,8 +49,14 @@ func (listener *MOQTListener) Listen() error {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		moqtsession := CreateMOQSession(wts, listener.Role)
-		moqtsession.Serve()
+		session, err := CreateMOQSession(wts, listener.Role)
+
+		if err != nil {
+			log.Error().Msgf("[Error Creating MOQ Session][%s]", err)
+			return
+		}
+
+		session.Serve()
 	}
 
 	listener.Handler = http.HandlerFunc(webTransportHandler)
@@ -76,7 +84,7 @@ func (listener *MOQTListener) Listen() error {
 			listener.handleWebTransport(quicConn)
 		default:
 			log.Error().Msgf("[QUIC Listener][Uknonwn ALPN - %s]", alpn)
-			quicConn.CloseWithError(quic.ApplicationErrorCode(MOQERR_INTERNAL_ERROR), "Internal Error - Unknown ALPN")
+			quicConn.CloseWithError(quic.ApplicationErrorCode(wire.MOQERR_INTERNAL_ERROR), "Internal Error - Unknown ALPN")
 		}
 	}
 
@@ -88,7 +96,12 @@ func (listener MOQTListener) handleMOQ(conn quic.Connection) {
 
 	log.Debug().Msgf("[Incoming QUIC Session][IP - %s]", conn.RemoteAddr())
 
-	session := CreateMOQSession(conn, listener.Role)
+	session, err := CreateMOQSession(conn, listener.Role)
+
+	if err != nil {
+		log.Error().Msgf("[Error Creating MOQ Session][%s]", err)
+		return
+	}
 
 	go session.Serve()
 }

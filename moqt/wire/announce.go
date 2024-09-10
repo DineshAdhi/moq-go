@@ -1,4 +1,4 @@
-package moqt
+package wire
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 )
 
 type AnnounceMessage struct {
-	tracknamespace string
+	TrackNameSpace string
 	params         Parameters
 }
 
@@ -28,7 +28,7 @@ func (a *AnnounceMessage) Parse(r quicvarint.Reader) error {
 
 	stringname := string(namebytes)
 
-	a.tracknamespace = stringname
+	a.TrackNameSpace = stringname
 
 	params := Parameters{}
 	err = params.Parse(r)
@@ -45,7 +45,7 @@ func (a *AnnounceMessage) Parse(r quicvarint.Reader) error {
 func (a AnnounceMessage) GetBytes() []byte {
 	var data []byte
 
-	namebytes := []byte(a.tracknamespace)
+	namebytes := []byte(a.TrackNameSpace)
 	data = quicvarint.Append(data, ANNOUNCE)
 	data = quicvarint.Append(data, uint64(len(namebytes)))
 	data = append(data, namebytes...)
@@ -56,7 +56,7 @@ func (a AnnounceMessage) GetBytes() []byte {
 }
 
 func (a AnnounceMessage) String() string {
-	str := fmt.Sprintf("[ANNOUNCE Message][ObjectStream Namespace - %s]", a.tracknamespace)
+	str := fmt.Sprintf("[ANNOUNCE][Track Namespace - %s]", a.TrackNameSpace)
 
 	if len(a.params) > 0 {
 		str += fmt.Sprintf("[Params - %s]", a.params.String())

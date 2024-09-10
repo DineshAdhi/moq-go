@@ -1,4 +1,4 @@
-package moqt
+package wire
 
 import (
 	"fmt"
@@ -154,12 +154,12 @@ func (s SubscribeMessage) GetBytes() []byte {
 }
 
 // Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
-func (s SubscribeMessage) getstreamid() string {
-	return fmt.Sprintf("%s_%s_%X", s.ObjectStreamNamespace, s.ObjectStreamName, s.ObjectStreamAlias)
+func (s SubscribeMessage) GetStreamID() uint64 {
+	return s.ObjectStreamAlias
 }
 
 func (s SubscribeMessage) String() string {
-	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][TrackName - %s][Track Alias - %X][NameSpace - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.ObjectStreamName, s.ObjectStreamAlias, s.ObjectStreamNamespace)
+	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][Name - %s][Alias - %X][NameSpace - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.ObjectStreamName, s.ObjectStreamAlias, s.ObjectStreamNamespace)
 
 	if len(s.Params) > 0 {
 		str += s.Params.String()

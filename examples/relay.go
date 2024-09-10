@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"flag"
+	moqt "moq-go/moqt"
+	"moq-go/moqt/wire"
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"moq-go/moqt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -46,7 +46,7 @@ func main() {
 		ALPNS:      ALPNS,
 		QuicConfig: nil,
 		Ctx:        ctx,
-		Role:       moqt.ROLE_PUBSUB,
+		Role:       wire.ROLE_RELAY,
 	}
 
 	err := listener.Listen()

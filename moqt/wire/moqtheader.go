@@ -1,8 +1,7 @@
-package moqt
+package wire
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -19,6 +18,7 @@ type MOQTObjectHeader interface {
 	GetSubID() uint64
 	GetTrackAlias() uint64
 	GetObjectKey() string
+	GetGroupID() uint64
 	Parse(quicvarint.Reader) error
 	GetBytes(uint64) []byte
 	String() string
@@ -66,12 +66,16 @@ func (gh *GroupHeader) GetSubID() uint64 {
 	return gh.SubscribeID
 }
 
+func (gh *GroupHeader) GetGroupID() uint64 {
+	return gh.GroupID
+}
+
 func (gh *GroupHeader) GetTrackAlias() uint64 {
 	return gh.TrackAlias
 }
 
 func (gh *GroupHeader) GetObjectKey() string {
-	return fmt.Sprintf("%s_%s", strconv.FormatUint(gh.TrackAlias, 10), strconv.FormatUint(gh.GroupID, 10))
+	return fmt.Sprintf("%X_%d", gh.TrackAlias, gh.GroupID)
 }
 
 func (gh *GroupHeader) Parse(reader quicvarint.Reader) (err error) {
