@@ -9,6 +9,7 @@ type Handler interface {
 	HandleAnnounce(msg *wire.AnnounceMessage)
 	HandleSubscribe(msg *wire.SubscribeMessage)
 	HandleSubscribeOk(msg *wire.SubscribeOkMessage)
+	HandleAnnounceOk(msg *wire.AnnounceOkMessage)
 }
 
 func CreateNewHandler(role uint64, session *MOQTSession) (Handler, error) {

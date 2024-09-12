@@ -6,25 +6,25 @@ import (
 
 type StreamsMap struct {
 	*MOQTSession
-	streams  map[uint64]*ObjectStream // SubID - ObjectStream
-	subidmap map[uint64]uint64        // StreamID - SubID
-	lock     sync.RWMutex
+	streams     map[uint64]*ObjectStream // SubID - ObjectStream
+	streamidmap map[string]uint64        // StreamID - SubID
+	lock        sync.RWMutex
 }
 
 func NewStreamsMap(s *MOQTSession) StreamsMap {
 	return StreamsMap{
 		MOQTSession: s,
 		streams:     map[uint64]*ObjectStream{},
-		subidmap:    map[uint64]uint64{},
+		streamidmap: map[string]uint64{},
 		lock:        sync.RWMutex{},
 	}
 }
 
-func (s *StreamsMap) StreamIDGetStream(id uint64) (*ObjectStream, bool) {
+func (s *StreamsMap) StreamIDGetStream(streamid string) (*ObjectStream, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	if subid, ok := s.subidmap[id]; ok {
+	if subid, ok := s.streamidmap[streamid]; ok {
 		if stream, ok := s.streams[subid]; ok {
 			return stream, true
 		}
@@ -48,7 +48,7 @@ func (s *StreamsMap) AddStream(subid uint64, os *ObjectStream) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.subidmap[os.streamid] = subid
+	s.streamidmap[os.streamid] = subid
 	s.streams[subid] = os
 }
 
@@ -56,22 +56,22 @@ func (s *StreamsMap) DeleteStream(os *ObjectStream) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.Slogger.Info().Msgf("[Deleting Stream][%d]", os.streamid)
+	s.Slogger.Info().Msgf("[Deleting Stream][%s]", os.streamid)
 
-	delete(s.subidmap, os.streamid)
+	delete(s.streamidmap, os.streamid)
 	delete(s.streams, os.subid)
 }
 
-func (s *StreamsMap) CreateNewStream(subid uint64, streamid uint64) *ObjectStream {
+func (s *StreamsMap) CreateNewStream(subid uint64, streamid string) *ObjectStream {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.subidmap[streamid] = subid
+	s.streamidmap[streamid] = subid
 
 	obs := NewObjectStream(subid, streamid, s)
 	s.streams[subid] = obs
 
-	s.Slogger.Info().Msgf("[New Object Stream][%d]", streamid)
+	s.Slogger.Info().Msgf("[New Object Stream][%s]", streamid)
 
 	return obs
 }

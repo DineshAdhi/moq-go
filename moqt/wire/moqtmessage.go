@@ -89,6 +89,8 @@ func ParseMOQTMessage(reader quicvarint.Reader) (MOQTMessage, error) {
 		msg = &ServerSetup{}
 	case ANNOUNCE:
 		msg = &AnnounceMessage{}
+	case ANNOUNCE_OK:
+		msg = &AnnounceOkMessage{}
 	case SUBSCRIBE:
 		msg = &SubscribeMessage{}
 	case SUBSCRIBE_OK:

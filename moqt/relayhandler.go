@@ -26,10 +26,10 @@ func (handler *RelayHandler) HandleSubscribe(msg *wire.SubscribeMessage) {
 
 	handler.Slogger.Info().Msg(msg.String())
 
-	pub := sm.getPublisher(msg.ObjectStreamNamespace)
+	pub := sm.getPublisher(msg.TrackNameSpace)
 
 	if pub == nil {
-		log.Error().Msgf("[No Publisher found with Namespace - %s]", msg.ObjectStreamNamespace)
+		log.Error().Msgf("[No Publisher found with Namespace - %s]", msg.TrackNameSpace)
 		return
 	}
 
@@ -40,5 +40,17 @@ func (handler *RelayHandler) HandleSubscribe(msg *wire.SubscribeMessage) {
 }
 
 func (handler *RelayHandler) HandleSubscribeOk(msg *wire.SubscribeOkMessage) {
+	handler.Slogger.Info().Msg(msg.String())
+
+	subid := msg.SubscribeID
+
+	if os, ok := handler.IncomingStreams.SubIDGetStream(subid); ok {
+		for _, sub := range os.subscribers {
+			sub.CS.SendSubscribeOk(os.streamid, msg)
+		}
+	}
+}
+
+func (handler *RelayHandler) HandleAnnounceOk(msg *wire.AnnounceOkMessage) {
 	handler.Slogger.Info().Msg(msg.String())
 }

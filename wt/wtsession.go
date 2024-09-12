@@ -211,6 +211,22 @@ func (wts *WTSession) OpenUniStreamSync(ctx context.Context) (quic.SendStream, e
 	return stream, nil
 }
 
+func (wts *WTSession) OpenStream() (quic.Stream, error) {
+	stream, err := wts.quicConn.OpenStream()
+
+	if err != nil {
+		return nil, err
+	}
+
+	header := StreamHeader{}
+	header.Type = STREAM_WEBTRANSPORT_BI_STREAM
+	header.ID = 0
+
+	stream.Write(header.GetBytes())
+
+	return stream, nil
+}
+
 func (wts *WTSession) OpenUniStream() (quic.SendStream, error) {
 	stream, err := wts.quicConn.OpenUniStream()
 

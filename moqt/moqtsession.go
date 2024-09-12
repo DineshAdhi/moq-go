@@ -19,6 +19,13 @@ var DEFAULT_SERVER_SETUP = wire.ServerSetup{SelectedVersion: wire.DRAFT_04, Para
 	wire.ROLE_PARAM: &wire.IntParameter{Ptype: wire.ROLE_PARAM, Pvalue: wire.ROLE_RELAY},
 }}
 
+var DEFAULT_CLIENT_SETUP = wire.ClientSetup{
+	SupportedVersions: []uint64{wire.DRAFT_04},
+	Params: wire.Parameters{
+		wire.ROLE_PARAM: &wire.IntParameter{Ptype: wire.ROLE_PARAM, Pvalue: wire.ROLE_RELAY},
+	},
+}
+
 var sm *SessionManager = NewSessionManager()
 
 type MOQTConnection interface {
@@ -27,7 +34,13 @@ type MOQTConnection interface {
 	CloseWithError(quic.ApplicationErrorCode, string) error
 	OpenUniStreamSync(ctx context.Context) (quic.SendStream, error)
 	OpenUniStream() (quic.SendStream, error)
+	OpenStream() (quic.Stream, error)
 }
+
+const (
+	SERVER_MODE = uint8(0x34)
+	CLIENT_MODE = uint8(0x66)
+)
 
 type MOQTSession struct {
 	Conn              MOQTConnection
@@ -41,9 +54,10 @@ type MOQTSession struct {
 	Handler           Handler
 	IncomingStreams   StreamsMap
 	SubscribedStreams StreamsMap
+	Mode              uint8
 }
 
-func CreateMOQSession(conn MOQTConnection, LocalRole uint64) (*MOQTSession, error) {
+func CreateMOQSession(conn MOQTConnection, LocalRole uint64, mode uint8) (*MOQTSession, error) {
 	session := &MOQTSession{}
 	session.Conn = conn
 	session.ctx, session.cancelFunc = context.WithCancel(context.Background())
@@ -52,6 +66,7 @@ func CreateMOQSession(conn MOQTConnection, LocalRole uint64) (*MOQTSession, erro
 	session.LocalRole = LocalRole
 	session.IncomingStreams = NewStreamsMap(session)
 	session.SubscribedStreams = NewStreamsMap(session)
+	session.Mode = mode
 
 	session.Slogger = log.With().Str("ID", session.id).Str("Role", wire.GetRoleStringVarInt(session.RemoteRole)).Logger()
 
@@ -77,13 +92,28 @@ func (s *MOQTSession) Close(code uint64, msg string) {
 	sm.removeSession(s)
 }
 
-func (s *MOQTSession) Serve() {
-	go s.handleControlStream()
+func (s *MOQTSession) SendSubscribeOk(streamid string, okm *wire.SubscribeOkMessage) {
+	if subid, ok := s.SubscribedStreams.streamidmap[streamid]; ok {
+		subokmsg := *okm
+		subokmsg.SubscribeID = subid
+
+		s.CS.WriteControlMessage(&subokmsg)
+	}
+}
+
+func (s *MOQTSession) ServeMOQ() {
+	switch s.Mode {
+	case SERVER_MODE:
+		go s.handleControlStream()
+	case CLIENT_MODE:
+		go s.InitiateHandshake()
+	}
+
 }
 
 func (s *MOQTSession) SetRemoteRole(role uint64) {
 	s.RemoteRole = role
-	s.Slogger = log.With().Str("ID", s.id).Str("Role", wire.GetRoleStringVarInt(s.RemoteRole)).Logger()
+	s.Slogger = log.With().Str("ID", s.id).Str("RemoteRole", wire.GetRoleStringVarInt(s.RemoteRole)).Logger()
 
 	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
 		go s.handleUniStreams()
@@ -96,8 +126,8 @@ func (s *MOQTSession) GetObjectStream(msg *wire.SubscribeMessage) *ObjectStream 
 	streamid := msg.GetStreamID()
 	stream, found := s.IncomingStreams.StreamIDGetStream(streamid)
 
-	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm tts a nasty implementation. Requires more work.
-	if !found || msg.ObjectStreamName == ".catalog" || msg.ObjectStreamName == "audio.mp4" || msg.ObjectStreamName == "video.mp4" {
+	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm its a nasty implementation. Requires more work.
+	if !found || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
 		subid := uint64(rand.Uint32())
 		stream = s.IncomingStreams.CreateNewStream(subid, streamid)
 
@@ -110,23 +140,40 @@ func (s *MOQTSession) GetObjectStream(msg *wire.SubscribeMessage) *ObjectStream 
 }
 
 func (s *MOQTSession) DispatchObject(object *MOQTObject) {
-	unistream, err := s.Conn.OpenUniStream()
+
+	if subid, ok := s.SubscribedStreams.streamidmap[object.GetStreamID()]; ok {
+
+		unistream, err := s.Conn.OpenUniStream()
+
+		if err != nil {
+			s.Slogger.Error().Msgf("[Error Opening Unistream][%s]", err)
+			return
+		}
+
+		groupHeader := object.header
+		unistream.Write(groupHeader.GetBytes(subid))
+
+		reader := object.NewReader()
+		reader.Pipe(unistream)
+
+		unistream.Close()
+	} else {
+		s.Slogger.Error().Msgf("[Unable to find DownStream SubID for StreamID][Stream ID - %s]", object.GetStreamID())
+	}
+}
+
+func (s *MOQTSession) InitiateHandshake() {
+	cs, err := s.Conn.OpenStream()
 
 	if err != nil {
-		s.Slogger.Error().Msgf("[Error Opening Unistream][%s]", err)
+		s.Close(wire.MOQERR_INTERNAL_ERROR, fmt.Sprintf("[Handshake Failed][Error Opening ControlStream]"))
 		return
 	}
 
-	streamid := object.header.GetTrackAlias()
-	subid := s.SubscribedStreams.subidmap[streamid]
+	s.CS = NewControlStream(s, cs)
+	go s.CS.ServeCS()
 
-	groupHeader := object.header
-	unistream.Write(groupHeader.GetBytes(subid))
-
-	reader := object.NewReader()
-	reader.Pipe(unistream)
-
-	unistream.Close()
+	s.CS.WriteControlMessage(&DEFAULT_CLIENT_SETUP)
 }
 
 // Stream Handlers
@@ -152,7 +199,7 @@ func (s *MOQTSession) handleControlStream() {
 		}
 
 		s.CS = NewControlStream(s, stream)
-		go s.CS.Serve()
+		go s.CS.ServeCS()
 	}
 }
 
@@ -163,6 +210,7 @@ func (s *MOQTSession) handleUniStreams() {
 
 		if err != nil {
 			log.Error().Msgf("[Error Acceping Unistream][%s]", err)
+			break
 		}
 
 		go func(stream quic.ReceiveStream) {

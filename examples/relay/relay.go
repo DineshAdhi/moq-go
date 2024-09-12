@@ -1,10 +1,9 @@
 package main
 
 import (
-	"context"
 	"flag"
 	moqt "moq-go/moqt"
-	"moq-go/moqt/wire"
+	"moq-go/moqt/api"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,8 +14,8 @@ import (
 
 const LISTENADDR = "0.0.0.0:4443"
 
-const CERTPATH = "./certs/localhost.crt"
-const KEYPATH = "./certs/localhost.key"
+const CERTPATH = "../certs/localhost.crt"
+const KEYPATH = "../certs/localhost.key"
 
 var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 
@@ -36,20 +35,14 @@ func main() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	listener := moqt.MOQTListener{
+	Options := moqt.ListenerOptions{
 		ListenAddr: LISTENADDR,
 		CertPath:   CERTPATH,
 		KeyPath:    KEYPATH,
-		ALPNS:      ALPNS,
+		ALPNs:      ALPNS,
 		QuicConfig: nil,
-		Ctx:        ctx,
-		Role:       wire.ROLE_RELAY,
 	}
 
-	err := listener.Listen()
-
-	log.Error().Msgf("[Error MOQListener][%s]", err)
+	relay := api.NewMOQTRelay(Options, []string{})
+	relay.Run()
 }

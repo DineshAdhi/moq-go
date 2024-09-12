@@ -24,6 +24,7 @@ type MOQTObject struct {
 	len       int
 	iseof     bool
 	createdat time.Time
+	streamid  string
 }
 
 func NewMOQTObject(header wire.MOQTObjectHeader) *MOQTObject {
@@ -43,6 +44,14 @@ func (object *MOQTObject) Write(buffer []byte) {
 
 	object.data = append(object.data, buffer...)
 	object.len += len(buffer)
+}
+
+func (object *MOQTObject) SetStreamID(sid string) {
+	object.streamid = sid
+}
+
+func (object *MOQTObject) GetStreamID() string {
+	return object.streamid
 }
 
 func (object *MOQTObject) isExpired() bool {

@@ -1,7 +1,6 @@
 package moqt
 
 import (
-	"fmt"
 	"moq-go/moqt/wire"
 	"net"
 
@@ -37,7 +36,7 @@ func (cs *ControlStream) WriteControlMessage(msg wire.MOQTMessage) {
 	cs.Slogger.Debug().Msgf("[Dipsatching CONTROL]%s", msg.String())
 }
 
-func (cs *ControlStream) Serve() {
+func (cs *ControlStream) ServeCS() {
 
 	reader := quicvarint.NewReader(cs.stream)
 
@@ -49,7 +48,7 @@ func (cs *ControlStream) Serve() {
 		}
 
 		if err != nil {
-			cs.Close(wire.MOQERR_INTERNAL_ERROR, fmt.Sprintf("[Error Parsing Control Message][%s]", err))
+			log.Debug().Msgf("[Error Parsing MOQT Message][%s]", err)
 			break
 		}
 
@@ -77,11 +76,35 @@ func (cs *ControlStream) handleSetupMessage(m wire.MOQTMessage) {
 
 		if role := clientSetup.Params.GetParameter(wire.ROLE_PARAM); role != nil {
 			cs.SetRemoteRole(role.Value().(uint64))
+		} else {
+			cs.Close(wire.MOQERR_INTERNAL_ERROR, "CLIENT SETUP ERROR : ROLE PARAM MISSING")
+			return
 		}
 
 		cs.ishandshakedone = true
 		cs.Slogger.Info().Msgf("[Handshake Success]")
 		cs.WriteControlMessage(&DEFAULT_SERVER_SETUP)
+
+	case wire.SERVER_SETUP:
+
+		serverSetup := m.(*wire.ServerSetup)
+
+		cs.Slogger.Debug().Msgf(serverSetup.String())
+
+		if serverSetup.SelectedVersion != wire.DRAFT_04 {
+			cs.Close(wire.MOQERR_INTERNAL_ERROR, "SERVER SETUP ERRR : PROTOCOL DRAFT NOT SUPPORTED")
+			return
+		}
+
+		if role := serverSetup.Params.GetParameter(wire.ROLE_PARAM); role != nil {
+			cs.SetRemoteRole(role.Value().(uint64))
+		} else {
+			cs.Close(wire.MOQERR_INTERNAL_ERROR, "SERVER SETUP ERROR : ROLE PARAM MISSING")
+			return
+		}
+
+		cs.ishandshakedone = true
+		cs.Slogger.Info().Msgf("[Handshake Success]")
 
 	default:
 		log.Error().Msgf("[Received Unknown Setup Message][Type - %s][%X]", wire.GetMoqMessageString(m.Type()), m.Type())
@@ -90,6 +113,8 @@ func (cs *ControlStream) handleSetupMessage(m wire.MOQTMessage) {
 
 func (cs *ControlStream) handleControlMessage(m wire.MOQTMessage) {
 
+	log.Debug().Msg("Got Control")
+
 	switch m.Type() {
 	case wire.ANNOUNCE:
 		cs.Handler.HandleAnnounce(m.(*wire.AnnounceMessage))
@@ -97,6 +122,10 @@ func (cs *ControlStream) handleControlMessage(m wire.MOQTMessage) {
 		cs.Handler.HandleSubscribe(m.(*wire.SubscribeMessage))
 	case wire.SUBSCRIBE_OK:
 		cs.Handler.HandleSubscribeOk(m.(*wire.SubscribeOkMessage))
+	case wire.ANNOUNCE_OK:
+		cs.Handler.HandleAnnounceOk(m.(*wire.AnnounceOkMessage))
+	default:
+		log.Error().Msg("Unknown Control Message")
 	}
 
 }

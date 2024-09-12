@@ -1,6 +1,7 @@
 package moqt
 
 import (
+	"moq-go/moqt/wire"
 	"sync"
 	"time"
 
@@ -45,11 +46,25 @@ func (sm *SessionManager) removeSession(session *MOQTSession) {
 	delete(sm.sessions, id)
 }
 
-func (sm *SessionManager) addPublisher(ns string, s *MOQTSession) {
+func (sm *SessionManager) addPublisher(ns string, pub *MOQTSession) {
 	sm.nslock.Lock()
-	defer sm.nslock.Unlock()
+	sm.namespaces[ns] = pub
+	sm.nslock.Unlock()
 
-	sm.namespaces[ns] = s
+	sm.sessionslock.RLock()
+
+	for _, peer := range sm.sessions {
+
+		if peer.RemoteRole == wire.ROLE_RELAY && peer.id != pub.id {
+			announce := wire.AnnounceMessage{
+				TrackNameSpace: ns,
+			}
+
+			peer.CS.WriteControlMessage(&announce)
+		}
+	}
+
+	sm.sessionslock.RUnlock()
 }
 
 func (sm *SessionManager) removePublisher(ns string) {
