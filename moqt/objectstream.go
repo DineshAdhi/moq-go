@@ -7,6 +7,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	CLEAN_UP_INTERVAL = 30
+)
+
 type ObjectStream struct {
 	streamsmap     *StreamsMap
 	subid          uint64
@@ -15,6 +19,7 @@ type ObjectStream struct {
 	subscriberlock sync.RWMutex
 	objectlock     sync.RWMutex
 	objects        map[string]*MOQTObject
+	stopCleanup    chan struct{}
 }
 
 func NewObjectStream(subid uint64, streamid string, sm *StreamsMap) *ObjectStream {
@@ -27,16 +32,16 @@ func NewObjectStream(subid uint64, streamid string, sm *StreamsMap) *ObjectStrea
 		objectlock:     sync.RWMutex{},
 		subscribers:    map[string]*MOQTSession{},
 		objects:        map[string]*MOQTObject{},
+		stopCleanup:    make(chan struct{}),
 	}
 
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		quit := make(chan struct{})
+		ticker := time.NewTicker(CLEAN_UP_INTERVAL * time.Second)
 		for {
 			select {
 			case <-ticker.C:
-				os.CleanUp(quit)
-			case <-quit:
+				os.CleanUp()
+			case <-os.stopCleanup:
 				ticker.Stop()
 				break
 			}
@@ -46,7 +51,7 @@ func NewObjectStream(subid uint64, streamid string, sm *StreamsMap) *ObjectStrea
 	return os
 }
 
-func (os *ObjectStream) CleanUp(quit chan struct{}) {
+func (os *ObjectStream) CleanUp() {
 	os.objectlock.Lock()
 	defer os.objectlock.Unlock()
 
@@ -64,7 +69,7 @@ func (os *ObjectStream) CleanUp(quit chan struct{}) {
 
 	if len(os.objects) == 0 {
 		os.streamsmap.DeleteStream(os)
-		close(quit)
+		close(os.stopCleanup)
 	}
 }
 
@@ -81,7 +86,7 @@ func (os *ObjectStream) RemoveSubscriber(sessionid string) {
 	os.subscriberlock.Lock()
 	defer os.subscriberlock.Unlock()
 
-	log.Debug().Msgf("[Session Unsubscribed from - %s][Session - %s]", os.streamid, sessionid)
+	log.Debug().Msgf("[Session Unsubscribed from - %s][%s]", os.streamid, sessionid)
 
 	delete(os.subscribers, sessionid)
 }

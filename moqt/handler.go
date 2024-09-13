@@ -6,10 +6,12 @@ import (
 )
 
 type Handler interface {
-	HandleAnnounce(msg *wire.AnnounceMessage)
-	HandleSubscribe(msg *wire.SubscribeMessage)
-	HandleSubscribeOk(msg *wire.SubscribeOkMessage)
-	HandleAnnounceOk(msg *wire.AnnounceOkMessage)
+	HandleAnnounce(msg *wire.Announce)
+	HandleSubscribe(msg *wire.Subscribe)
+	HandleSubscribeOk(msg *wire.SubscribeOk)
+	HandleAnnounceOk(msg *wire.AnnounceOk)
+	HandleUnsubscribe(msg *wire.Unsubcribe)
+	HandleSubscribeDone(msg *wire.SubscribeDone)
 }
 
 func CreateNewHandler(role uint64, session *MOQTSession) (Handler, error) {

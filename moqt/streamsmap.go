@@ -1,6 +1,7 @@
 package moqt
 
 import (
+	"moq-go/moqt/wire"
 	"sync"
 )
 
@@ -57,6 +58,10 @@ func (s *StreamsMap) DeleteStream(os *ObjectStream) {
 	defer s.lock.Unlock()
 
 	s.Slogger.Info().Msgf("[Deleting Stream][%s]", os.streamid)
+
+	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
+		s.SendUnsubscribe(os.subid)
+	}
 
 	delete(s.streamidmap, os.streamid)
 	delete(s.streams, os.subid)

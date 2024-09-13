@@ -46,7 +46,7 @@ func GetFilterType(ftype uint64) string {
 	}
 }
 
-type SubscribeMessage struct {
+type Subscribe struct {
 	SubscribeID    uint64
 	TrackAlias     uint64
 	TrackNameSpace string
@@ -59,7 +59,7 @@ type SubscribeMessage struct {
 	Params         Parameters
 }
 
-func (s *SubscribeMessage) Parse(reader quicvarint.Reader) (err error) {
+func (s *Subscribe) Parse(reader quicvarint.Reader) (err error) {
 
 	if s.SubscribeID, err = quicvarint.Read(reader); err != nil {
 		return err
@@ -126,7 +126,7 @@ func (s *SubscribeMessage) Parse(reader quicvarint.Reader) (err error) {
 	return nil
 }
 
-func (s SubscribeMessage) GetBytes() []byte {
+func (s Subscribe) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, SUBSCRIBE)
@@ -158,11 +158,11 @@ func (s SubscribeMessage) GetBytes() []byte {
 }
 
 // Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
-func (s SubscribeMessage) GetStreamID() string {
+func (s Subscribe) GetStreamID() string {
 	return fmt.Sprintf("%s_%s_%X", s.TrackNameSpace, s.TrackName, s.TrackAlias)
 }
 
-func (s SubscribeMessage) String() string {
+func (s Subscribe) String() string {
 	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][Name - %s][Alias - %X][NameSpace - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.TrackName, s.TrackAlias, s.TrackNameSpace)
 
 	if len(s.Params) > 0 {
@@ -172,6 +172,6 @@ func (s SubscribeMessage) String() string {
 	return str
 }
 
-func (s SubscribeMessage) Type() uint64 {
+func (s Subscribe) Type() uint64 {
 	return SUBSCRIBE
 }

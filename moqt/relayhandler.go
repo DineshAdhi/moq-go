@@ -10,21 +10,40 @@ type RelayHandler struct {
 	*MOQTSession
 }
 
-func (handler *RelayHandler) HandleAnnounce(msg *wire.AnnounceMessage) {
+// Comes from Publisher
+func (publisher *RelayHandler) HandleAnnounce(msg *wire.Announce) {
 
-	handler.Slogger.Info().Msgf(msg.String())
+	publisher.Slogger.Info().Msgf(msg.String())
 
-	okmsg := wire.AnnounceOkMessage{}
+	okmsg := wire.AnnounceOk{}
 	okmsg.TrackNameSpace = msg.TrackNameSpace
 
-	sm.addPublisher(msg.TrackNameSpace, handler.MOQTSession)
+	sm.addPublisher(msg.TrackNameSpace, publisher.MOQTSession)
 
-	handler.CS.WriteControlMessage(&okmsg)
+	publisher.CS.WriteControlMessage(&okmsg)
 }
 
-func (handler *RelayHandler) HandleSubscribe(msg *wire.SubscribeMessage) {
+// Comes from Publisher
+func (publisher *RelayHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
+	publisher.Slogger.Info().Msg(msg.String())
 
-	handler.Slogger.Info().Msg(msg.String())
+	subid := msg.SubscribeID
+
+	if os, ok := publisher.IncomingStreams.SubIDGetStream(subid); ok {
+		for _, sub := range os.subscribers {
+			sub.CS.SendSubscribeOk(os.streamid, msg)
+		}
+	}
+}
+
+func (publisher *RelayHandler) HandleSubscribeDone(msg *wire.SubscribeDone) {
+	publisher.Slogger.Info().Msg(msg.String())
+}
+
+// Comes from Subscriber
+func (subscriber *RelayHandler) HandleSubscribe(msg *wire.Subscribe) {
+
+	subscriber.Slogger.Info().Msg(msg.String())
 
 	pub := sm.getPublisher(msg.TrackNameSpace)
 
@@ -34,23 +53,22 @@ func (handler *RelayHandler) HandleSubscribe(msg *wire.SubscribeMessage) {
 	}
 
 	os := pub.GetObjectStream(msg)
-	os.AddSubscriber(msg.SubscribeID, handler.MOQTSession)
+	os.AddSubscriber(msg.SubscribeID, subscriber.MOQTSession)
 
-	handler.SubscribedStreams.AddStream(msg.SubscribeID, os)
+	subscriber.SubscribedStreams.AddStream(msg.SubscribeID, os)
 }
 
-func (handler *RelayHandler) HandleSubscribeOk(msg *wire.SubscribeOkMessage) {
-	handler.Slogger.Info().Msg(msg.String())
+func (subscriber *RelayHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
+	subscriber.Slogger.Info().Msg(msg.String())
+}
 
-	subid := msg.SubscribeID
+func (subscriber *RelayHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
 
-	if os, ok := handler.IncomingStreams.SubIDGetStream(subid); ok {
-		for _, sub := range os.subscribers {
-			sub.CS.SendSubscribeOk(os.streamid, msg)
-		}
+	subscriber.Slogger.Info().Msg(msg.String())
+
+	subid := msg.SubscriptionID
+
+	if os, ok := subscriber.SubscribedStreams.SubIDGetStream(subid); ok {
+		os.RemoveSubscriber(subscriber.id)
 	}
-}
-
-func (handler *RelayHandler) HandleAnnounceOk(msg *wire.AnnounceOkMessage) {
-	handler.Slogger.Info().Msg(msg.String())
 }

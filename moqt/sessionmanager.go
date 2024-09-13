@@ -56,7 +56,7 @@ func (sm *SessionManager) addPublisher(ns string, pub *MOQTSession) {
 	for _, peer := range sm.sessions {
 
 		if peer.RemoteRole == wire.ROLE_RELAY && peer.id != pub.id {
-			announce := wire.AnnounceMessage{
+			announce := wire.Announce{
 				TrackNameSpace: ns,
 			}
 

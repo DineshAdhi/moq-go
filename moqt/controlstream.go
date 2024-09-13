@@ -113,19 +113,19 @@ func (cs *ControlStream) handleSetupMessage(m wire.MOQTMessage) {
 
 func (cs *ControlStream) handleControlMessage(m wire.MOQTMessage) {
 
-	log.Debug().Msg("Got Control")
-
 	switch m.Type() {
 	case wire.ANNOUNCE:
-		cs.Handler.HandleAnnounce(m.(*wire.AnnounceMessage))
+		cs.Handler.HandleAnnounce(m.(*wire.Announce))
 	case wire.SUBSCRIBE:
-		cs.Handler.HandleSubscribe(m.(*wire.SubscribeMessage))
+		cs.Handler.HandleSubscribe(m.(*wire.Subscribe))
 	case wire.SUBSCRIBE_OK:
-		cs.Handler.HandleSubscribeOk(m.(*wire.SubscribeOkMessage))
+		cs.Handler.HandleSubscribeOk(m.(*wire.SubscribeOk))
 	case wire.ANNOUNCE_OK:
-		cs.Handler.HandleAnnounceOk(m.(*wire.AnnounceOkMessage))
+		cs.Handler.HandleAnnounceOk(m.(*wire.AnnounceOk))
+	case wire.UNSUBSCRIBE:
+		cs.Handler.HandleUnsubscribe(m.(*wire.Unsubcribe))
 	default:
-		log.Error().Msg("Unknown Control Message")
+		log.Error().Msgf("Unknown Control Message +v", m)
 	}
 
 }

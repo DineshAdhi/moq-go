@@ -15,6 +15,7 @@ import (
 
 const (
 	OBJECT_READ_LENGTH = 1024
+	OBJECT_EXPIRY_TIME = 30
 )
 
 type MOQTObject struct {
@@ -57,7 +58,7 @@ func (object *MOQTObject) GetStreamID() string {
 func (object *MOQTObject) isExpired() bool {
 	now := time.Now()
 
-	if now.Sub(object.createdat).Seconds() >= 10 {
+	if now.Sub(object.createdat).Seconds() >= OBJECT_EXPIRY_TIME {
 		return true
 	}
 

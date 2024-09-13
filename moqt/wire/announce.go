@@ -6,35 +6,26 @@ import (
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
-type AnnounceMessage struct {
+type Announce struct {
 	TrackNameSpace string
 	params         Parameters
 }
 
-func (a AnnounceMessage) Type() uint64 {
+func (a Announce) Type() uint64 {
 	return ANNOUNCE
 }
 
-func (a *AnnounceMessage) Parse(r quicvarint.Reader) error {
+func (a *Announce) Parse(r quicvarint.Reader) (err error) {
 
-	namelen, err := quicvarint.Read(r)
-
-	if err != nil {
-		return err
+	if a.TrackNameSpace, err = ParseVarIntString(r); err != nil {
+		return
 	}
-
-	namebytes := make([]byte, namelen)
-	r.Read(namebytes)
-
-	stringname := string(namebytes)
-
-	a.TrackNameSpace = stringname
 
 	params := Parameters{}
 	err = params.Parse(r)
 
 	if err != nil {
-		return err
+		return
 	}
 
 	a.params = params
@@ -42,7 +33,7 @@ func (a *AnnounceMessage) Parse(r quicvarint.Reader) error {
 	return nil
 }
 
-func (a AnnounceMessage) GetBytes() []byte {
+func (a Announce) GetBytes() []byte {
 	var data []byte
 
 	namebytes := []byte(a.TrackNameSpace)
@@ -55,7 +46,7 @@ func (a AnnounceMessage) GetBytes() []byte {
 	return data
 }
 
-func (a AnnounceMessage) String() string {
+func (a Announce) String() string {
 	str := fmt.Sprintf("[ANNOUNCE][Track Namespace - %s]", a.TrackNameSpace)
 
 	if len(a.params) > 0 {

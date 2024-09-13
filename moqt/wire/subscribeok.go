@@ -15,7 +15,7 @@ import (
 //   [Largest Object ID (i)]
 // }
 
-type SubscribeOkMessage struct {
+type SubscribeOk struct {
 	SubscribeID     uint64
 	expires         uint64
 	contentexists   uint8
@@ -23,11 +23,11 @@ type SubscribeOkMessage struct {
 	largestObjectId uint64
 }
 
-func (s SubscribeOkMessage) Type() uint64 {
+func (s SubscribeOk) Type() uint64 {
 	return SUBSCRIBE_OK
 }
 
-func (s *SubscribeOkMessage) Parse(reader quicvarint.Reader) (err error) {
+func (s *SubscribeOk) Parse(reader quicvarint.Reader) (err error) {
 
 	if s.SubscribeID, err = quicvarint.Read(reader); err != nil {
 		return err
@@ -54,7 +54,7 @@ func (s *SubscribeOkMessage) Parse(reader quicvarint.Reader) (err error) {
 	return nil
 }
 
-func (s SubscribeOkMessage) GetBytes() []byte {
+func (s SubscribeOk) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, SUBSCRIBE_OK)
@@ -70,12 +70,12 @@ func (s SubscribeOkMessage) GetBytes() []byte {
 	return data
 }
 
-func (s SubscribeOkMessage) String() string {
+func (s SubscribeOk) String() string {
 	return fmt.Sprintf("[SubscribeOK][ID - %X][Expires - %d][Content Exists - %d][L Group Id / Object Id - %d / %d]", s.SubscribeID, s.expires, s.contentexists, s.largestObjectId, s.largestGroupId)
 }
 
-func GetSubOKMessage(id uint64) SubscribeOkMessage {
-	okmsg := SubscribeOkMessage{}
+func GetSubOKMessage(id uint64) SubscribeOk {
+	okmsg := SubscribeOk{}
 	okmsg.SubscribeID = id
 	okmsg.expires = 0
 	okmsg.contentexists = 1

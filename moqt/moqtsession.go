@@ -92,13 +92,21 @@ func (s *MOQTSession) Close(code uint64, msg string) {
 	sm.removeSession(s)
 }
 
-func (s *MOQTSession) SendSubscribeOk(streamid string, okm *wire.SubscribeOkMessage) {
+func (s *MOQTSession) SendSubscribeOk(streamid string, okm *wire.SubscribeOk) {
 	if subid, ok := s.SubscribedStreams.streamidmap[streamid]; ok {
 		subokmsg := *okm
 		subokmsg.SubscribeID = subid
 
 		s.CS.WriteControlMessage(&subokmsg)
 	}
+}
+
+func (s *MOQTSession) SendUnsubscribe(subid uint64) {
+	msg := &wire.Unsubcribe{
+		SubscriptionID: subid,
+	}
+
+	s.CS.WriteControlMessage(msg)
 }
 
 func (s *MOQTSession) ServeMOQ() {
@@ -108,12 +116,15 @@ func (s *MOQTSession) ServeMOQ() {
 	case CLIENT_MODE:
 		go s.InitiateHandshake()
 	}
-
 }
 
 func (s *MOQTSession) SetRemoteRole(role uint64) {
 	s.RemoteRole = role
 	s.Slogger = log.With().Str("ID", s.id).Str("RemoteRole", wire.GetRoleStringVarInt(s.RemoteRole)).Logger()
+
+	switch s.LocalRole {
+	case wire.ROLE_RELAY:
+	}
 
 	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
 		go s.handleUniStreams()
@@ -121,7 +132,7 @@ func (s *MOQTSession) SetRemoteRole(role uint64) {
 }
 
 // Fetches the Object Stream with the StreamID (OR) Forwards the Subscribe and returns the ObjectStream Placeholder
-func (s *MOQTSession) GetObjectStream(msg *wire.SubscribeMessage) *ObjectStream {
+func (s *MOQTSession) GetObjectStream(msg *wire.Subscribe) *ObjectStream {
 
 	streamid := msg.GetStreamID()
 	stream, found := s.IncomingStreams.StreamIDGetStream(streamid)
