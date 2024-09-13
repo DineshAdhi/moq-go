@@ -15,7 +15,7 @@ import (
 
 const (
 	OBJECT_READ_LENGTH = 1024
-	OBJECT_EXPIRY_TIME = 30
+	OBJECT_EXPIRY_TIME = 10
 )
 
 type MOQTObject struct {
