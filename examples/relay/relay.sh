@@ -4,4 +4,4 @@ fi
 
 sh cert.sh ../certs
 
-go run relay.go -debug=true
+go run relay.go $@
