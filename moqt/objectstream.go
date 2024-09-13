@@ -1,79 +1,111 @@
 package moqt
 
 import (
-	"fmt"
-
-	"strconv"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
 
-type ObjectDelivery struct {
-	os     *ObjectStream
-	object *MOQTObject
-}
+const (
+	CLEAN_UP_INTERVAL = 30
+)
 
 type ObjectStream struct {
-	streamid    string
-	trackalias  uint64
-	objects     map[string]*MOQTObject
-	maplock     *sync.RWMutex
-	subscribers []*MOQTSession
-	sublock     *sync.RWMutex
+	streamsmap     *StreamsMap
+	subid          uint64
+	streamid       string
+	subscribers    map[string]*MOQTSession
+	subscriberlock sync.RWMutex
+	objectlock     sync.RWMutex
+	objects        map[string]*MOQTObject
+	stopCleanup    chan struct{}
 }
 
-func NewObjectStream(streamid string, trackalias uint64) *ObjectStream {
-	os := &ObjectStream{}
-	os.streamid = streamid
-	os.trackalias = trackalias
-	os.maplock = &sync.RWMutex{}
-	os.objects = map[string]*MOQTObject{}
-	os.sublock = &sync.RWMutex{}
-	os.subscribers = []*MOQTSession{}
+func NewObjectStream(subid uint64, streamid string, sm *StreamsMap) *ObjectStream {
 
-	log.Info().Msgf("[New Object Stream][%s]", streamid)
+	os := &ObjectStream{
+		streamsmap:     sm,
+		subid:          subid,
+		streamid:       streamid,
+		subscriberlock: sync.RWMutex{},
+		objectlock:     sync.RWMutex{},
+		subscribers:    map[string]*MOQTSession{},
+		objects:        map[string]*MOQTObject{},
+		stopCleanup:    make(chan struct{}),
+	}
+
+	go func() {
+		ticker := time.NewTicker(CLEAN_UP_INTERVAL * time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				os.CleanUp()
+			case <-os.stopCleanup:
+				ticker.Stop()
+				break
+			}
+		}
+	}()
 
 	return os
 }
 
-func (stream *ObjectStream) AddSubscriber(s *MOQTSession) {
-	stream.sublock.Lock()
-	defer stream.sublock.Unlock()
+func (os *ObjectStream) CleanUp() {
+	os.objectlock.Lock()
+	defer os.objectlock.Unlock()
 
-	stream.subscribers = append(stream.subscribers, s)
+	expiredlist := []string{}
 
-	objectkey := fmt.Sprintf("%s_%s", strconv.FormatUint(stream.trackalias, 10), strconv.FormatUint(0, 10))
-	object := stream.getObject(objectkey)
+	for id, obj := range os.objects {
+		if obj.isExpired() {
+			expiredlist = append(expiredlist, id)
+		}
+	}
 
-	if object != nil {
-		s.ObjectChannel <- &ObjectDelivery{stream, object}
+	for _, expired := range expiredlist {
+		delete(os.objects, expired)
+	}
+
+	if len(os.objects) == 0 {
+		os.streamsmap.DeleteStream(os)
+		close(os.stopCleanup)
 	}
 }
 
-func (stream *ObjectStream) NotifySubscribers(object *MOQTObject, objkey string) {
+func (os *ObjectStream) AddSubscriber(subid uint64, session *MOQTSession) {
+	os.subscriberlock.Lock()
+	defer os.subscriberlock.Unlock()
 
-	stream.sublock.RLock()
-	defer stream.sublock.RUnlock()
+	os.subscribers[session.id] = session
 
-	for _, s := range stream.subscribers {
-		s.ObjectChannel <- &ObjectDelivery{stream, object}
+	session.Slogger.Info().Msgf("[Subscribed to Stream - %s][Len - %d]", os.streamid, len(os.subscribers))
+}
+
+func (os *ObjectStream) RemoveSubscriber(sessionid string) {
+	os.subscriberlock.Lock()
+	defer os.subscriberlock.Unlock()
+
+	log.Debug().Msgf("[Session Unsubscribed from - %s][%s]", os.streamid, sessionid)
+
+	delete(os.subscribers, sessionid)
+}
+
+func (os *ObjectStream) AddObject(object *MOQTObject) {
+	os.objectlock.Lock()
+	defer os.objectlock.Unlock()
+
+	object.SetStreamID(os.streamid) // Very Important. Object only contains Alias. Set the StreamID, so its easy for downstream to get the subid
+	os.objects[object.header.GetObjectKey()] = object
+
+	go os.NotifySubscribers(object)
+}
+
+func (os *ObjectStream) NotifySubscribers(object *MOQTObject) {
+	os.subscriberlock.RLock()
+	defer os.subscriberlock.RUnlock()
+
+	for _, subscriber := range os.subscribers {
+		go subscriber.DispatchObject(object)
 	}
-}
-
-func (stream *ObjectStream) addObject(object *MOQTObject) {
-	stream.maplock.Lock()
-	defer stream.maplock.Unlock()
-
-	objkey := object.header.GetObjectKey()
-	stream.objects[objkey] = object
-
-	go stream.NotifySubscribers(object, objkey)
-}
-
-func (stream *ObjectStream) getObject(objkey string) *MOQTObject {
-	stream.maplock.RLock()
-	defer stream.maplock.RUnlock()
-
-	return stream.objects[objkey]
 }

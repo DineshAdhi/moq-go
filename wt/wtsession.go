@@ -31,8 +31,8 @@ var DEFAULT_SETTINGS = []h3.Setting{
 	{Key: h3.WEBTRANSPORT_MAX_SESSIONS, Value: 1},
 	{Key: h3.SETTINGS_ENABLE_CONNECT_PROTOCOL, Value: 1},
 	{Key: h3.H3_DATAGRAM_05, Value: 1},
-	// {Key: h3.SETTINGS_QPACK_MAX_TABLE_CAPACITY, Value: 0},
-	// {Key: h3.SETTINGS_QPACK_BLOCKED_STREAMS, Value: 0},
+	{Key: h3.SETTINGS_QPACK_MAX_TABLE_CAPACITY, Value: 0},
+	{Key: h3.SETTINGS_QPACK_BLOCKED_STREAMS, Value: 0},
 }
 
 func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
@@ -168,7 +168,6 @@ func (wts *WTSession) ProcesUniStreams() {
 		stream, err := wts.quicConn.AcceptUniStream(context.TODO())
 
 		if err != nil {
-			log.Error().Msgf("[WTS][Error Processing Uni Stream][%s]", err)
 			break
 		}
 
@@ -205,6 +204,22 @@ func (wts *WTSession) OpenUniStreamSync(ctx context.Context) (quic.SendStream, e
 
 	header := StreamHeader{}
 	header.Type = STREAM_WEBTRANSPORT_UNI_STREAM
+	header.ID = 0
+
+	stream.Write(header.GetBytes())
+
+	return stream, nil
+}
+
+func (wts *WTSession) OpenStream() (quic.Stream, error) {
+	stream, err := wts.quicConn.OpenStream()
+
+	if err != nil {
+		return nil, err
+	}
+
+	header := StreamHeader{}
+	header.Type = STREAM_WEBTRANSPORT_BI_STREAM
 	header.ID = 0
 
 	stream.Write(header.GetBytes())

@@ -1,4 +1,4 @@
-package moqt
+package wire
 
 import (
 	"fmt"
@@ -88,11 +88,17 @@ func ParseMOQTMessage(reader quicvarint.Reader) (MOQTMessage, error) {
 	case SERVER_SETUP:
 		msg = &ServerSetup{}
 	case ANNOUNCE:
-		msg = &AnnounceMessage{}
+		msg = &Announce{}
+	case ANNOUNCE_OK:
+		msg = &AnnounceOk{}
 	case SUBSCRIBE:
-		msg = &SubscribeMessage{}
+		msg = &Subscribe{}
 	case SUBSCRIBE_OK:
-		msg = &SubscribeOkMessage{}
+		msg = &SubscribeOk{}
+	case UNSUBSCRIBE:
+		msg = &Unsubcribe{}
+	case SUBSCRIBE_DONE:
+		msg = &SubscribeDone{}
 	default:
 		return nil, fmt.Errorf("unkown MOQT Message %d %+v", mtype, msg)
 	}

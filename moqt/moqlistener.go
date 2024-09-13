@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 
+	"moq-go/moqt/wire"
+
 	"moq-go/wt"
 	"net/http"
 
@@ -11,20 +13,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type MOQTListener struct {
-	http.Handler
+type ListenerOptions struct {
 	ListenAddr string
 	CertPath   string
 	KeyPath    string
-	ALPNS      []string
+	ALPNs      []string
 	QuicConfig *quic.Config
-	Ctx        context.Context
-	Role       uint64
+}
+
+type MOQTListener struct {
+	http.Handler
+	Options ListenerOptions
+	Ctx     context.Context
+	Role    uint64
 }
 
 func (listener *MOQTListener) Listen() error {
 
-	tlsCerts, err := tls.LoadX509KeyPair(listener.CertPath, listener.KeyPath)
+	Options := listener.Options
+	tlsCerts, err := tls.LoadX509KeyPair(Options.CertPath, Options.KeyPath)
 
 	if err != nil {
 		return err
@@ -32,10 +39,10 @@ func (listener *MOQTListener) Listen() error {
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{tlsCerts},
-		NextProtos:   listener.ALPNS,
+		NextProtos:   Options.ALPNs,
 	}
 
-	quiclistener, err := quic.ListenAddr(listener.ListenAddr, &tlsConfig, listener.QuicConfig)
+	quiclistener, err := quic.ListenAddr(Options.ListenAddr, &tlsConfig, Options.QuicConfig)
 
 	if err != nil {
 		return err
@@ -47,8 +54,14 @@ func (listener *MOQTListener) Listen() error {
 		wts := req.Body.(*wt.WTSession)
 		wts.AcceptSession()
 
-		moqtsession := CreateMOQSession(wts, listener.Role)
-		moqtsession.Serve()
+		session, err := CreateMOQSession(wts, listener.Role, SERVER_MODE)
+
+		if err != nil {
+			log.Error().Msgf("[Error Creating MOQ Session][%s]", err)
+			return
+		}
+
+		go session.ServeMOQ()
 	}
 
 	listener.Handler = http.HandlerFunc(webTransportHandler)
@@ -57,7 +70,7 @@ func (listener *MOQTListener) Listen() error {
 
 	// Now we do the actual listening..
 
-	log.Info().Msgf("[QUIC Listener][Listening on - %s]", listener.ListenAddr)
+	log.Info().Msgf("[QUIC Listener][Listening on - %s]", Options.ListenAddr)
 
 	for {
 		quicConn, err := quiclistener.Accept(listener.Ctx)
@@ -76,7 +89,7 @@ func (listener *MOQTListener) Listen() error {
 			listener.handleWebTransport(quicConn)
 		default:
 			log.Error().Msgf("[QUIC Listener][Uknonwn ALPN - %s]", alpn)
-			quicConn.CloseWithError(quic.ApplicationErrorCode(MOQERR_INTERNAL_ERROR), "Internal Error - Unknown ALPN")
+			quicConn.CloseWithError(quic.ApplicationErrorCode(wire.MOQERR_INTERNAL_ERROR), "Internal Error - Unknown ALPN")
 		}
 	}
 
@@ -88,9 +101,14 @@ func (listener MOQTListener) handleMOQ(conn quic.Connection) {
 
 	log.Debug().Msgf("[Incoming QUIC Session][IP - %s]", conn.RemoteAddr())
 
-	session := CreateMOQSession(conn, listener.Role)
+	session, err := CreateMOQSession(conn, listener.Role, SERVER_MODE)
 
-	go session.Serve()
+	if err != nil {
+		log.Error().Msgf("[Error Creating MOQ Session][%s]", err)
+		return
+	}
+
+	go session.ServeMOQ()
 }
 
 // Handles WebTransport based MOQ Sessions

@@ -1,4 +1,4 @@
-package moqt
+package wire
 
 import (
 	"fmt"
@@ -27,6 +27,10 @@ const (
 	AbsoluteRange = uint64(0x4)
 )
 
+type StreamID struct {
+	string
+}
+
 func GetFilterType(ftype uint64) string {
 	switch ftype {
 	case LatestGroup:
@@ -42,34 +46,34 @@ func GetFilterType(ftype uint64) string {
 	}
 }
 
-type SubscribeMessage struct {
-	SubscribeID           uint64
-	ObjectStreamAlias     uint64
-	ObjectStreamNamespace string
-	ObjectStreamName      string
-	FilterType            uint64
-	StartGroup            uint64
-	StartObject           uint64
-	EndGroup              uint64
-	EndObject             uint64
-	Params                Parameters
+type Subscribe struct {
+	SubscribeID    uint64
+	TrackAlias     uint64
+	TrackNameSpace string
+	TrackName      string
+	FilterType     uint64
+	StartGroup     uint64
+	StartObject    uint64
+	EndGroup       uint64
+	EndObject      uint64
+	Params         Parameters
 }
 
-func (s *SubscribeMessage) Parse(reader quicvarint.Reader) (err error) {
+func (s *Subscribe) Parse(reader quicvarint.Reader) (err error) {
 
 	if s.SubscribeID, err = quicvarint.Read(reader); err != nil {
 		return err
 	}
 
-	if s.ObjectStreamAlias, err = quicvarint.Read(reader); err != nil {
+	if s.TrackAlias, err = quicvarint.Read(reader); err != nil {
 		return err
 	}
 
-	if s.ObjectStreamNamespace, err = ParseVarIntString(reader); err != nil {
+	if s.TrackNameSpace, err = ParseVarIntString(reader); err != nil {
 		return err
 	}
 
-	if s.ObjectStreamName, err = ParseVarIntString(reader); err != nil {
+	if s.TrackName, err = ParseVarIntString(reader); err != nil {
 		return err
 	}
 
@@ -122,14 +126,14 @@ func (s *SubscribeMessage) Parse(reader quicvarint.Reader) (err error) {
 	return nil
 }
 
-func (s SubscribeMessage) GetBytes() []byte {
+func (s Subscribe) GetBytes() []byte {
 	var data []byte
 
 	data = quicvarint.Append(data, SUBSCRIBE)
 	data = quicvarint.Append(data, s.SubscribeID)
-	data = quicvarint.Append(data, s.ObjectStreamAlias)
-	data = append(data, GetBytesVarIntString(s.ObjectStreamNamespace)...)
-	data = append(data, GetBytesVarIntString(s.ObjectStreamName)...)
+	data = quicvarint.Append(data, s.TrackAlias)
+	data = append(data, GetBytesVarIntString(s.TrackNameSpace)...)
+	data = append(data, GetBytesVarIntString(s.TrackName)...)
 	data = quicvarint.Append(data, s.FilterType)
 
 	if s.FilterType == AbsoluteStart || s.FilterType == AbsoluteRange {
@@ -154,12 +158,12 @@ func (s SubscribeMessage) GetBytes() []byte {
 }
 
 // Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
-func (s SubscribeMessage) getstreamid() string {
-	return fmt.Sprintf("%s_%s_%X", s.ObjectStreamNamespace, s.ObjectStreamName, s.ObjectStreamAlias)
+func (s Subscribe) GetStreamID() string {
+	return fmt.Sprintf("%s_%s_%X", s.TrackNameSpace, s.TrackName, s.TrackAlias)
 }
 
-func (s SubscribeMessage) String() string {
-	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][TrackName - %s][Track Alias - %X][NameSpace - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.ObjectStreamName, s.ObjectStreamAlias, s.ObjectStreamNamespace)
+func (s Subscribe) String() string {
+	str := fmt.Sprintf("[%s][ID - %X][Filter Type - %s][Name - %s][Alias - %X][NameSpace - %s]", GetMoqMessageString(SUBSCRIBE), s.SubscribeID, GetFilterType(s.FilterType), s.TrackName, s.TrackAlias, s.TrackNameSpace)
 
 	if len(s.Params) > 0 {
 		str += s.Params.String()
@@ -168,6 +172,6 @@ func (s SubscribeMessage) String() string {
 	return str
 }
 
-func (s SubscribeMessage) Type() uint64 {
+func (s Subscribe) Type() uint64 {
 	return SUBSCRIBE
 }

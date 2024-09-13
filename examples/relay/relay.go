@@ -1,13 +1,13 @@
 package main
 
 import (
-	"context"
 	"flag"
+	"fmt"
+	moqt "moq-go/moqt"
+	"moq-go/moqt/api"
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"moq-go/moqt"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -15,15 +15,17 @@ import (
 
 const LISTENADDR = "0.0.0.0:4443"
 
-const CERTPATH = "./certs/localhost.crt"
-const KEYPATH = "./certs/localhost.key"
-
 var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 
 func main() {
 
 	debug := flag.Bool("debug", false, "sets log level to debug")
+	port := flag.Int("port", 4443, "Listening Port")
+	KEYPATH := flag.String("keypath", "../certs/localhost.key", "Keypath")
+	CERTPATH := flag.String("certpath", "../certs/localhost.crt", "CertPath")
 	flag.Parse()
+
+	LISTENADDR := fmt.Sprintf("0.0.0.0:%d", *port)
 
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
 		return filepath.Base(file) + ":" + strconv.Itoa(line)
@@ -36,20 +38,16 @@ func main() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	listener := moqt.MOQTListener{
+	Options := moqt.ListenerOptions{
 		ListenAddr: LISTENADDR,
-		CertPath:   CERTPATH,
-		KeyPath:    KEYPATH,
-		ALPNS:      ALPNS,
+		CertPath:   *CERTPATH,
+		KeyPath:    *KEYPATH,
+		ALPNs:      ALPNS,
 		QuicConfig: nil,
-		Ctx:        ctx,
-		Role:       moqt.ROLE_PUBSUB,
 	}
 
-	err := listener.Listen()
+	peers := []string{} // TODO : Address of the Relay Peers for Fan out Implementation
 
-	log.Error().Msgf("[Error MOQListener][%s]", err)
+	relay := api.NewMOQTRelay(Options, peers)
+	relay.Run()
 }

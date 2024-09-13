@@ -1,4 +1,4 @@
-package moqt
+package wire
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ const (
 const (
 	ROLE_PUBLISHER  = uint64(0x01)
 	ROLE_SUBSCRIBER = uint64(0x02)
-	ROLE_PUBSUB     = uint64(0x03)
+	ROLE_RELAY      = uint64(0x03)
 )
 
 const (
@@ -62,8 +62,8 @@ func GetRoleStringVarInt(p uint64) string {
 		return string("ROLE_PUBLISHER")
 	case ROLE_SUBSCRIBER:
 		return string("ROLE_SUBCRIBER")
-	case ROLE_PUBSUB:
-		return string("ROLE_PUB_SUB")
+	case ROLE_RELAY:
+		return string("ROLE_RELAY")
 	default:
 		return string("UNKNOWN_ROLE")
 	}
@@ -75,8 +75,8 @@ func GetRoleString(param Parameter) string {
 		return string("ROLE_PUBLISHER")
 	case ROLE_SUBSCRIBER:
 		return string("ROLE_SUBCRIBER")
-	case ROLE_PUBSUB:
-		return string("ROLE_PUB_SUB")
+	case ROLE_RELAY:
+		return string("ROLE_RELAY")
 	default:
 		return string("UNKNOWN_ROLE")
 	}
