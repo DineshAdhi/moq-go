@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	CLEAN_UP_INTERVAL = 30
+	CLEAN_UP_INTERVAL = 20
 )
 
 type ObjectStream struct {
@@ -93,12 +93,13 @@ func (os *ObjectStream) RemoveSubscriber(sessionid string) {
 
 func (os *ObjectStream) AddObject(object *MOQTObject) {
 	os.objectlock.Lock()
-	defer os.objectlock.Unlock()
 
 	object.SetStreamID(os.streamid) // Very Important. Object only contains Alias. Set the StreamID, so its easy for downstream to get the subid
 	os.objects[object.header.GetObjectKey()] = object
 
-	go os.NotifySubscribers(object)
+	os.objectlock.Unlock()
+
+	os.NotifySubscribers(object)
 }
 
 func (os *ObjectStream) NotifySubscribers(object *MOQTObject) {
