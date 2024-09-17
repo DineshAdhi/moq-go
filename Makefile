@@ -7,7 +7,7 @@ relay : examples/relay/relay.go clean
 run : relay
 	bin/relay -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key
 
-run_prod : relay
+run_prod :
 	env MOQT_CERT_PATH=/etc/letsencrypt/live/dineshadhi.com/fullchain.pem MOQT_KEY_PATH=/etc/letsencrypt/live/dineshadhi.com/privkey.pem bin/relay
 
 cert:
