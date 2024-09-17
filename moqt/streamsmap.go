@@ -1,7 +1,6 @@
 package moqt
 
 import (
-	"moq-go/moqt/wire"
 	"sync"
 )
 
@@ -59,14 +58,15 @@ func (s *StreamsMap) DeleteStream(os *ObjectStream) {
 
 	s.Slogger.Info().Msgf("[Deleting Stream][%s]", os.streamid)
 
-	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
-		// s.SendUnsubscribe(os.subid) do not send unsubscribe, mot-js doesn't like it.'
-	}
-
 	delete(s.streamidmap, os.streamid)
 	delete(s.streams, os.subid)
 
-	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
+	if s.isUpstream() {
+
+		// Send Unsubscribe to Upstream
+		// s.SendUnsubscribe(os.subid) moq-js doesn't support it yet
+
+		// Proceed deleting the streams to downstream subscribers
 		for _, sub := range os.subscribers {
 			sub.SubscribedStreams.DeleteStream(os)
 		}

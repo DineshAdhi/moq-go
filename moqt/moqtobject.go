@@ -28,7 +28,7 @@ type MOQTObject struct {
 	streamid  string
 }
 
-func NewMOQTObject(header wire.MOQTObjectHeader) *MOQTObject {
+func NewMOQTObject(header wire.MOQTObjectHeader, streamid string) *MOQTObject {
 	object := &MOQTObject{}
 	object.header = header
 	object.data = make([]byte, 0)
@@ -36,6 +36,7 @@ func NewMOQTObject(header wire.MOQTObjectHeader) *MOQTObject {
 	object.objlock = sync.RWMutex{}
 	object.iseof = false
 	object.createdat = time.Now()
+	object.streamid = streamid
 	return object
 }
 
@@ -45,10 +46,6 @@ func (object *MOQTObject) Write(buffer []byte) {
 
 	object.data = append(object.data, buffer...)
 	object.len += len(buffer)
-}
-
-func (object *MOQTObject) SetStreamID(sid string) {
-	object.streamid = sid
 }
 
 func (object *MOQTObject) GetStreamID() string {

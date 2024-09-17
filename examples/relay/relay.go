@@ -9,20 +9,24 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
-const LISTENADDR = "0.0.0.0:4443"
+const PORT = 4443
 
 var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 
 func main() {
 
+	ENVCERTPATH := os.Getenv("MOQT_CERT_PATH")
+	ENVKEYPATH := os.Getenv("MOQT_KEY_PATH")
+
 	debug := flag.Bool("debug", false, "sets log level to debug")
-	port := flag.Int("port", 4443, "Listening Port")
-	KEYPATH := flag.String("keypath", "../certs/localhost.key", "Keypath")
-	CERTPATH := flag.String("certpath", "../certs/localhost.crt", "CertPath")
+	port := flag.Int("port", PORT, "Listening Port")
+	KEYPATH := flag.String("keypath", ENVKEYPATH, "Keypath")
+	CERTPATH := flag.String("certpath", ENVCERTPATH, "CertPath")
 	flag.Parse()
 
 	LISTENADDR := fmt.Sprintf("0.0.0.0:%d", *port)
@@ -38,12 +42,16 @@ func main() {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
+	quicConfig := &quic.Config{
+		EnableDatagrams: true,
+	}
+
 	Options := moqt.ListenerOptions{
 		ListenAddr: LISTENADDR,
 		CertPath:   *CERTPATH,
 		KeyPath:    *KEYPATH,
 		ALPNs:      ALPNS,
-		QuicConfig: nil,
+		QuicConfig: quicConfig,
 	}
 
 	peers := []string{} // TODO : Address of the Relay Peers for Fan out Implementation

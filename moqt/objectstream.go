@@ -94,7 +94,7 @@ func (os *ObjectStream) RemoveSubscriber(sessionid string) {
 func (os *ObjectStream) AddObject(object *MOQTObject) {
 	os.objectlock.Lock()
 
-	object.SetStreamID(os.streamid) // Very Important. Object only contains Alias. Set the StreamID, so its easy for downstream to get the subid
+	// object.SetStreamID(os.streamid) // Very Important. Object only contains Alias. Set the StreamID, so its easy for downstream to get the subid
 	os.objects[object.header.GetObjectKey()] = object
 
 	os.objectlock.Unlock()

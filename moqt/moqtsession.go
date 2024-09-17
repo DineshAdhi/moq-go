@@ -150,6 +150,10 @@ func (s *MOQTSession) GetObjectStream(msg *wire.Subscribe) *ObjectStream {
 	return stream
 }
 
+func (s *MOQTSession) isUpstream() bool {
+	return s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY
+}
+
 func (s *MOQTSession) DispatchObject(object *MOQTObject) {
 
 	if subid, ok := s.SubscribedStreams.streamidmap[object.GetStreamID()]; ok {
@@ -234,15 +238,17 @@ func (s *MOQTSession) handleUniStreams() {
 				return
 			}
 
-			object := NewMOQTObject(header)
-			go object.ParseFromStream(reader)
-
 			subid := header.GetSubID()
 
 			if objectStream, found := s.IncomingStreams.SubIDGetStream(subid); found {
+
+				object := NewMOQTObject(header, objectStream.streamid)
+				go object.ParseFromStream(reader)
+
 				objectStream.AddObject(object)
+
 			} else {
-				s.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", object.header.GetTrackAlias())
+				s.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", header.GetTrackAlias())
 			}
 
 		}(unistream)
