@@ -1,6 +1,6 @@
 module moq-go
 
-go 1.22.5
+go 1.22
 
 require (
 	github.com/quic-go/qpack v0.5.1
