@@ -161,7 +161,7 @@ func (s *MOQTSession) DispatchObject(object *MOQTObject) {
 		unistream, err := s.Conn.OpenUniStream()
 
 		if err != nil {
-			s.Slogger.Error().Msgf("[Error Opening Unistream][%s]", err)
+			// s.Slogger.Error().Msgf("[Error Opening Unistream][%s]", err)
 			return
 		}
 
@@ -228,29 +228,23 @@ func (s *MOQTSession) handleUniStreams() {
 			break
 		}
 
-		go func(stream quic.ReceiveStream) {
+		reader := quicvarint.NewReader(unistream)
+		header, err := wire.ParseMOQTObjectHeader(reader)
 
-			reader := quicvarint.NewReader(stream)
-			header, err := wire.ParseMOQTObjectHeader(reader)
+		if err != nil {
+			s.Slogger.Error().Msgf("[Error Parsing Object Header][%s]", err)
+			continue
+		}
 
-			if err != nil {
-				s.Slogger.Error().Msgf("[Error Parsing Object Header][%s]", err)
-				return
-			}
+		subid := header.GetSubID()
 
-			subid := header.GetSubID()
+		if objectStream, found := s.IncomingStreams.SubIDGetStream(subid); found {
 
-			if objectStream, found := s.IncomingStreams.SubIDGetStream(subid); found {
+			object := NewMOQTObject(header, objectStream.streamid, reader)
+			objectStream.AddObject(object)
 
-				object := NewMOQTObject(header, objectStream.streamid)
-				go object.ParseFromStream(reader)
-
-				objectStream.AddObject(object)
-
-			} else {
-				s.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", header.GetTrackAlias())
-			}
-
-		}(unistream)
+		} else {
+			s.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", header.GetTrackAlias())
+		}
 	}
 }

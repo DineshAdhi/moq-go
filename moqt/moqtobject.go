@@ -26,9 +26,10 @@ type MOQTObject struct {
 	iseof     bool
 	createdat time.Time
 	streamid  string
+	reader    quicvarint.Reader
 }
 
-func NewMOQTObject(header wire.MOQTObjectHeader, streamid string) *MOQTObject {
+func NewMOQTObject(header wire.MOQTObjectHeader, streamid string, reader quicvarint.Reader) *MOQTObject {
 	object := &MOQTObject{}
 	object.header = header
 	object.data = make([]byte, 0)
@@ -37,6 +38,7 @@ func NewMOQTObject(header wire.MOQTObjectHeader, streamid string) *MOQTObject {
 	object.iseof = false
 	object.createdat = time.Now()
 	object.streamid = streamid
+	object.reader = reader
 	return object
 }
 
@@ -64,10 +66,10 @@ func (object *MOQTObject) isExpired() bool {
 
 func (object *MOQTObject) ParseFromStream(reader quicvarint.Reader) {
 
-	var buffer []byte = make([]byte, OBJECT_READ_LENGTH)
+	var buffer [OBJECT_READ_LENGTH]byte
 
 	for {
-		n, err := reader.Read(buffer)
+		n, err := reader.Read(buffer[:])
 
 		if err != nil {
 
@@ -98,7 +100,7 @@ type MOQTObjectReader struct {
 	offset int
 }
 
-func (r *MOQTObjectReader) Read(buffer []byte) (int, error) {
+func (r *MOQTObjectReader) ReadToStream(stream quic.SendStream) (int, error) {
 
 	object := r.object
 
@@ -113,18 +115,38 @@ func (r *MOQTObjectReader) Read(buffer []byte) (int, error) {
 		return 0, nil
 	}
 
-	n := copy(buffer, object.data[r.offset:])
+	n, err := stream.Write(object.data[r.offset:])
+
+	if err != nil {
+		return n, err
+	}
+
 	r.offset += n
+
+	if r.offset >= object.len {
+		if object.iseof {
+			return 0, io.EOF
+		}
+
+		return 0, nil
+	}
 
 	return n, nil
 }
 
 func (r *MOQTObjectReader) Pipe(stream quic.SendStream) {
 
-	data := make([]byte, OBJECT_READ_LENGTH)
+	itr := 0
+
+	var err error
+	var n int
 
 	for {
-		n, err := r.Read(data)
+		itr++
+
+		if n, err = r.ReadToStream(stream); n == 0 {
+			<-time.After(time.Millisecond * 25)
+		}
 
 		if err != nil {
 
@@ -135,7 +157,5 @@ func (r *MOQTObjectReader) Pipe(stream quic.SendStream) {
 			log.Error().Msgf("[Error Writing Object Payload]")
 			return
 		}
-
-		stream.Write(data[:n])
 	}
 }

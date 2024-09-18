@@ -2,7 +2,6 @@ package moqt
 
 import (
 	"sync"
-	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -35,18 +34,18 @@ func NewObjectStream(subid uint64, streamid string, sm *StreamsMap) *ObjectStrea
 		stopCleanup:    make(chan struct{}),
 	}
 
-	go func() {
-		ticker := time.NewTicker(CLEAN_UP_INTERVAL * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-				os.CleanUp()
-			case <-os.stopCleanup:
-				ticker.Stop()
-				break
-			}
-		}
-	}()
+	// go func() {
+	// 	ticker := time.NewTicker(CLEAN_UP_INTERVAL * time.Second)
+	// 	for {
+	// 		select {
+	// 		case <-ticker.C:
+	// 			os.CleanUp()
+	// 		case <-os.stopCleanup:
+	// 			ticker.Stop()
+	// 			break
+	// 		}
+	// 	}
+	// }()
 
 	return os
 }
@@ -93,11 +92,10 @@ func (os *ObjectStream) RemoveSubscriber(sessionid string) {
 
 func (os *ObjectStream) AddObject(object *MOQTObject) {
 	os.objectlock.Lock()
-
-	// object.SetStreamID(os.streamid) // Very Important. Object only contains Alias. Set the StreamID, so its easy for downstream to get the subid
 	os.objects[object.header.GetObjectKey()] = object
-
 	os.objectlock.Unlock()
+
+	go object.ParseFromStream(object.reader)
 
 	os.NotifySubscribers(object)
 }

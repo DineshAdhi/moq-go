@@ -16,8 +16,8 @@ import (
 
 const LISTENADDR = "0.0.0.0:4443"
 
-const CERTPATH = "../certs/localhost.crt"
-const KEYPATH = "../certs/localhost.key"
+const CERTPATH = "./examples/certs/localhost.crt"
+const KEYPATH = "./examples/certs/localhost.key"
 
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 

@@ -8,6 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
@@ -19,6 +23,11 @@ const PORT = 4443
 var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 
 func main() {
+	// defer profile.Start(profile.ProfilePath("."), profile.GoroutineProfile, profile.MemProfileHeap, profile.CPUProfile).Stop()
+
+	go func() {
+		http.ListenAndServe(":8080", nil)
+	}()
 
 	ENVCERTPATH := os.Getenv("MOQT_CERT_PATH")
 	ENVKEYPATH := os.Getenv("MOQT_KEY_PATH")
@@ -35,7 +44,7 @@ func main() {
 		return filepath.Base(file) + ":" + strconv.Itoa(line)
 	}
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.StampMilli}).With().Caller().Logger()
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	if *debug {
