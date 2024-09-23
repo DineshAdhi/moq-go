@@ -48,11 +48,10 @@ func main() {
 	relay := api.NewMOQTRelay(Options, []string{})
 
 	DialerOptions := moqt.DialerOptions{
-		DialAddress: "127.0.0.1:4443",
-		CertPath:    CERTPATH,
-		KeyPath:     KEYPATH,
-		ALPNs:       ALPNS,
-		QuicConfig:  nil,
+		CertPath:   CERTPATH,
+		KeyPath:    KEYPATH,
+		ALPNs:      ALPNS,
+		QuicConfig: nil,
 	}
 
 	dialer := moqt.MOQTDialer{
@@ -61,7 +60,7 @@ func main() {
 		Ctx:     context.TODO(),
 	}
 
-	session, err := dialer.Connect()
+	session, err := dialer.Dial("127.0.0.1:4443")
 
 	if err != nil {
 		log.Error().Msgf("[Error Connect][%+v]", err)

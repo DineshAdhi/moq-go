@@ -8,9 +8,9 @@ import (
 
 // SUBSCRIBE Message {
 // 	Subscribe ID (i),
-// 	ObjectStream Alias (i),
-// 	ObjectStream Namespace (b),
-// 	ObjectStream Name (b),
+// 	RelayObjectStream Alias (i),
+// 	RelayObjectStream Namespace (b),
+// 	RelayObjectStream Name (b),
 // 	Filter Type (i),
 // 	[StartGroup (i),
 // 	 StartObject (i)],

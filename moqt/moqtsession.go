@@ -2,29 +2,15 @@ package moqt
 
 import (
 	"fmt"
-	"math/rand"
 	"moq-go/moqt/wire"
-	"net"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/context"
 )
-
-var DEFAULT_SERVER_SETUP = wire.ServerSetup{SelectedVersion: wire.DRAFT_04, Params: wire.Parameters{
-	wire.ROLE_PARAM: &wire.IntParameter{Ptype: wire.ROLE_PARAM, Pvalue: wire.ROLE_RELAY},
-}}
-
-var DEFAULT_CLIENT_SETUP = wire.ClientSetup{
-	SupportedVersions: []uint64{wire.DRAFT_04},
-	Params: wire.Parameters{
-		wire.ROLE_PARAM: &wire.IntParameter{Ptype: wire.ROLE_PARAM, Pvalue: wire.ROLE_RELAY},
-	},
-}
 
 var sm *SessionManager = NewSessionManager()
 
@@ -43,32 +29,31 @@ const (
 )
 
 type MOQTSession struct {
-	Conn              MOQTConnection
-	CS                *ControlStream
-	ctx               context.Context
-	id                string
-	RemoteRole        uint64
-	LocalRole         uint64
-	cancelFunc        func()
-	Slogger           zerolog.Logger
-	Handler           Handler
-	IncomingStreams   StreamsMap
-	SubscribedStreams StreamsMap
-	Mode              uint8
+	Conn          MOQTConnection
+	CS            *ControlStream
+	ctx           context.Context
+	Id            string
+	RemoteRole    uint64
+	LocalRole     uint64
+	cancelFunc    func()
+	Slogger       zerolog.Logger
+	Handler       Handler
+	Mode          uint8
+	HandshakeDone chan bool
 }
 
 func CreateMOQSession(conn MOQTConnection, LocalRole uint64, mode uint8) (*MOQTSession, error) {
 	session := &MOQTSession{}
 	session.Conn = conn
 	session.ctx, session.cancelFunc = context.WithCancel(context.Background())
-	session.id = strings.Split(uuid.New().String(), "-")[0]
+	session.Id = strings.Split(uuid.New().String(), "-")[0]
 	session.RemoteRole = 0
 	session.LocalRole = LocalRole
-	session.IncomingStreams = NewStreamsMap(session)
-	session.SubscribedStreams = NewStreamsMap(session)
-	session.Mode = mode
 
-	session.Slogger = log.With().Str("ID", session.id).Str("Role", wire.GetRoleStringVarInt(session.RemoteRole)).Logger()
+	session.Mode = mode
+	session.HandshakeDone = make(chan bool, 1)
+
+	session.Slogger = log.With().Str("ID", session.Id).Str("Role", wire.GetRoleStringVarInt(session.RemoteRole)).Logger()
 
 	if handler, err := CreateNewHandler(LocalRole, session); err != nil {
 		return nil, err
@@ -81,24 +66,32 @@ func CreateMOQSession(conn MOQTConnection, LocalRole uint64, mode uint8) (*MOQTS
 	return session, nil
 }
 
+func (s *MOQTSession) isUpstream() bool {
+	return s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY
+}
+
 func (s *MOQTSession) Close(code uint64, msg string) {
 	s.Conn.CloseWithError(quic.ApplicationErrorCode(code), msg)
 	s.cancelFunc()
 
-	s.SubscribedStreams.DeleteAll()
-
-	s.Slogger.Error().Msgf("[%s][Closing MOQT Session][Code - %d]%s", s.id, code, msg)
+	s.Slogger.Error().Msgf("[%s][Closing MOQT Session][Code - %d]%s", s.Id, code, msg)
 
 	sm.removeSession(s)
 }
 
-func (s *MOQTSession) SendSubscribeOk(streamid string, okm *wire.SubscribeOk) {
-	if subid, ok := s.SubscribedStreams.streamidmap[streamid]; ok {
-		subokmsg := *okm
-		subokmsg.SubscribeID = subid
-
-		s.CS.WriteControlMessage(&subokmsg)
+func (s *MOQTSession) ServeMOQ() {
+	switch s.Mode {
+	case SERVER_MODE:
+		go s.handleControlStream()
+	case CLIENT_MODE:
+		go s.InitiateHandshake()
 	}
+
+	go s.Handler.ProcessTracks() // Track Processing happens on the respective handlers (relay / pub / sub).
+}
+
+func (s *MOQTSession) SendSubscribe(submsg *wire.Subscribe) {
+	s.CS.WriteControlMessage(submsg)
 }
 
 func (s *MOQTSession) SendUnsubscribe(subid uint64) {
@@ -109,72 +102,10 @@ func (s *MOQTSession) SendUnsubscribe(subid uint64) {
 	s.CS.WriteControlMessage(msg)
 }
 
-func (s *MOQTSession) ServeMOQ() {
-	switch s.Mode {
-	case SERVER_MODE:
-		go s.handleControlStream()
-	case CLIENT_MODE:
-		go s.InitiateHandshake()
-	}
-}
-
-func (s *MOQTSession) SetRemoteRole(role uint64) {
-	s.RemoteRole = role
-	s.Slogger = log.With().Str("ID", s.id).Str("RemoteRole", wire.GetRoleStringVarInt(s.RemoteRole)).Logger()
-
-	switch s.LocalRole {
-	case wire.ROLE_RELAY:
-	}
-
-	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
-		go s.handleUniStreams()
-	}
-}
-
-// Fetches the Object Stream with the StreamID (OR) Forwards the Subscribe and returns the ObjectStream Placeholder
-func (s *MOQTSession) GetObjectStream(msg *wire.Subscribe) *ObjectStream {
-
-	streamid := msg.GetStreamID()
-	stream, found := s.IncomingStreams.StreamIDGetStream(streamid)
-
-	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm its a nasty implementation. Requires more work.
-	if !found || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
-		subid := uint64(rand.Uint32())
-		stream = s.IncomingStreams.CreateNewStream(subid, streamid)
-
-		submsg := *msg
-		submsg.SubscribeID = subid
-		s.CS.WriteControlMessage(&submsg)
-	}
-
-	return stream
-}
-
-func (s *MOQTSession) isUpstream() bool {
-	return s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY
-}
-
-func (s *MOQTSession) DispatchObject(object *MOQTObject) {
-
-	if subid, ok := s.SubscribedStreams.streamidmap[object.GetStreamID()]; ok {
-
-		unistream, err := s.Conn.OpenUniStream()
-
-		if err != nil {
-			// s.Slogger.Error().Msgf("[Error Opening Unistream][%s]", err)
-			return
-		}
-
-		groupHeader := object.header
-		unistream.Write(groupHeader.GetBytes(subid))
-
-		reader := object.NewReader()
-		reader.Pipe(unistream)
-
-		unistream.Close()
-	} else {
-		s.Slogger.Error().Msgf("[Unable to find DownStream SubID for StreamID][Stream ID - %s]", object.GetStreamID())
-	}
+func (s *MOQTSession) SendAnnounce(namespace string) {
+	s.CS.WriteControlMessage(&wire.Announce{
+		TrackNameSpace: namespace,
+	})
 }
 
 func (s *MOQTSession) InitiateHandshake() {
@@ -188,63 +119,34 @@ func (s *MOQTSession) InitiateHandshake() {
 	s.CS = NewControlStream(s, cs)
 	go s.CS.ServeCS()
 
-	s.CS.WriteControlMessage(&DEFAULT_CLIENT_SETUP)
+	clientSetup := wire.ClientSetup{
+		SupportedVersions: []uint64{wire.DRAFT_04},
+		Params: wire.Parameters{
+			wire.ROLE_PARAM: &wire.IntParameter{Ptype: wire.ROLE_PARAM, Pvalue: s.LocalRole},
+		},
+	}
+
+	s.CS.WriteControlMessage(&clientSetup)
 }
 
-// Stream Handlers
-func (s *MOQTSession) handleControlStream() {
+// This function sets the remote role of the session and starts the listeners accordingly. This is crucial part of the MOQT Handshake.
+func (s *MOQTSession) SetRemoteRole(role uint64) error {
+	s.RemoteRole = role
+	s.Slogger = log.With().Str("ID", s.Id).Str("RemoteRole", wire.GetRoleStringVarInt(s.RemoteRole)).Logger()
 
-	for {
-		var err error
-		stream, err := s.Conn.AcceptStream(s.ctx)
-
-		if err, ok := err.(net.Error); ok && err.Timeout() {
-			s.Close(wire.MOQERR_INTERNAL_ERROR, fmt.Sprintf("[Session Closed]"))
-			return
+	switch s.LocalRole {
+	case wire.ROLE_PUBLISHER:
+		if s.RemoteRole == wire.ROLE_PUBLISHER {
+			return fmt.Errorf("I am a Pub. Role Error")
 		}
-
-		if err != nil {
-			s.Close(wire.MOQERR_INTERNAL_ERROR, fmt.Sprintf("[Error Accepting Control Stream][%s]", err))
-			return
+	case wire.ROLE_SUBSCRIBER:
+		if s.RemoteRole == wire.ROLE_SUBSCRIBER {
+			return fmt.Errorf("I am a Sub. Role Error")
 		}
-
-		if s.CS != nil {
-			s.Close(wire.MOQERR_PROTOCOL_VIOLATION, "Received Control Stream Twice")
-			return
-		}
-
-		s.CS = NewControlStream(s, stream)
-		go s.CS.ServeCS()
+	case wire.ROLE_RELAY:
+	default:
+		return fmt.Errorf("Unknown Role")
 	}
-}
 
-func (s *MOQTSession) handleUniStreams() {
-
-	for {
-		unistream, err := s.Conn.AcceptUniStream(s.ctx)
-
-		if err != nil {
-			log.Error().Msgf("[Error Acceping Unistream][%s]", err)
-			break
-		}
-
-		reader := quicvarint.NewReader(unistream)
-		header, err := wire.ParseMOQTObjectHeader(reader)
-
-		if err != nil {
-			s.Slogger.Error().Msgf("[Error Parsing Object Header][%s]", err)
-			continue
-		}
-
-		subid := header.GetSubID()
-
-		if objectStream, found := s.IncomingStreams.SubIDGetStream(subid); found {
-
-			object := NewMOQTObject(header, objectStream.streamid, reader)
-			objectStream.AddObject(object)
-
-		} else {
-			s.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", header.GetTrackAlias())
-		}
-	}
+	return nil
 }

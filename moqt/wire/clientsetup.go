@@ -16,6 +16,16 @@ func (setup ClientSetup) Type() uint64 {
 	return CLIENT_SETUP
 }
 
+func (setup ClientSetup) GetRoleParam() (uint64, error) {
+	param := setup.Params.GetParameter(ROLE_PARAM)
+
+	if param != nil {
+		return param.Value().(uint64), nil
+	}
+
+	return 0, fmt.Errorf("%s", "Param not found")
+}
+
 func (setup *ClientSetup) GetBytes() []byte {
 	var data []byte
 

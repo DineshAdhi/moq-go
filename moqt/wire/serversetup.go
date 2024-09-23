@@ -11,8 +11,24 @@ type ServerSetup struct {
 	Params          Parameters
 }
 
+func NewServerSetup(version uint64, params Parameters) ServerSetup {
+	return ServerSetup{
+		SelectedVersion: version, Params: params,
+	}
+}
+
 func (setup ServerSetup) Type() uint64 {
 	return SERVER_SETUP
+}
+
+func (setup ServerSetup) GetRoleParam() (uint64, error) {
+	param := setup.Params.GetParameter(ROLE_PARAM)
+
+	if param != nil {
+		return param.Value().(uint64), nil
+	}
+
+	return 0, fmt.Errorf("%s", "Param not found")
 }
 
 func (setup ServerSetup) GetBytes() []byte {

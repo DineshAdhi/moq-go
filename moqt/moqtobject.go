@@ -20,25 +20,25 @@ const (
 
 type MOQTObject struct {
 	objlock   sync.RWMutex
-	header    wire.MOQTObjectHeader
+	Header    wire.MOQTObjectHeader
 	data      []byte
 	len       int
 	iseof     bool
 	createdat time.Time
 	streamid  string
-	reader    quicvarint.Reader
+	Reader    quicvarint.Reader
 }
 
 func NewMOQTObject(header wire.MOQTObjectHeader, streamid string, reader quicvarint.Reader) *MOQTObject {
 	object := &MOQTObject{}
-	object.header = header
+	object.Header = header
 	object.data = make([]byte, 0)
 	object.len = 0
 	object.objlock = sync.RWMutex{}
 	object.iseof = false
 	object.createdat = time.Now()
 	object.streamid = streamid
-	object.reader = reader
+	object.Reader = reader
 	return object
 }
 
@@ -54,7 +54,7 @@ func (object *MOQTObject) GetStreamID() string {
 	return object.streamid
 }
 
-func (object *MOQTObject) isExpired() bool {
+func (object *MOQTObject) IsExpired() bool {
 	now := time.Now()
 
 	if now.Sub(object.createdat).Seconds() >= OBJECT_EXPIRY_TIME {
@@ -79,7 +79,7 @@ func (object *MOQTObject) ParseFromStream(reader quicvarint.Reader) {
 				return
 			}
 
-			log.Error().Msgf("[%s][Error Reading From MOQTObject][%s]", object.header.GetObjectKey(), err)
+			log.Error().Msgf("[%s][Error Reading From MOQTObject][%s]", object.Header.GetObjectKey(), err)
 			return
 		}
 
@@ -136,16 +136,13 @@ func (r *MOQTObjectReader) ReadToStream(stream quic.SendStream) (int, error) {
 
 func (r *MOQTObjectReader) Pipe(stream quic.SendStream) {
 
-	itr := 0
-
 	var err error
 	var n int
 
 	for {
-		itr++
 
 		if n, err = r.ReadToStream(stream); n == 0 {
-			<-time.After(time.Millisecond * 25)
+			<-time.After(time.Millisecond * 10)
 		}
 
 		if err != nil {

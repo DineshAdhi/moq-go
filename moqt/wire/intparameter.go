@@ -11,6 +11,12 @@ type IntParameter struct {
 	Pvalue uint64
 }
 
+func NewIntParameter(ptype uint64, pvalue uint64) *IntParameter {
+	return &IntParameter{
+		Ptype: ptype, Pvalue: pvalue,
+	}
+}
+
 func (param IntParameter) Type() uint64 {
 	return param.Ptype
 }
