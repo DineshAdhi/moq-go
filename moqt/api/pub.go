@@ -52,11 +52,7 @@ func (pub *Publisher) Run() error {
 	go func() {
 		for {
 			stream := <-handler.SubscribeChannel
-
-			if stream.TrackName == "counter" {
-				handler.SubscribeOk(stream)
-				pub.SubscriptionChan <- stream
-			}
+			pub.SubscriptionChan <- stream
 		}
 	}()
 

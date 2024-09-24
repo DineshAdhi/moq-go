@@ -61,5 +61,5 @@ func (sub *Subscriber) Run() error {
 
 func (sub *Subscriber) Subscribe(name string, alias uint64) {
 	handler := sub.session.Handler.(*moqt.SubHandler)
-	handler.Subscribe(sub.namespace, "counter", 0)
+	handler.Subscribe(sub.namespace, name, 0)
 }

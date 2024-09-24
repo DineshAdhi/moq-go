@@ -27,12 +27,7 @@ func main() {
 		http.ListenAndServe(":8080", nil)
 	}()
 
-	ENVCERTPATH := os.Getenv("MOQT_CERT_PATH")
-	ENVKEYPATH := os.Getenv("MOQT_KEY_PATH")
-
 	debug := flag.Bool("debug", false, "sets log level to debug")
-	KEYPATH := flag.String("keypath", ENVKEYPATH, "Keypath")
-	CERTPATH := flag.String("certpath", ENVCERTPATH, "CertPath")
 	flag.Parse()
 
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
@@ -47,9 +42,7 @@ func main() {
 	}
 
 	Options := moqt.DialerOptions{
-		CertPath: *CERTPATH,
-		KeyPath:  *KEYPATH,
-		ALPNs:    ALPNS,
+		ALPNs: ALPNS,
 		QuicConfig: &quic.Config{
 			EnableDatagrams: true,
 		},
@@ -66,6 +59,9 @@ func main() {
 
 func handleStream(stream *moqt.PubStream) {
 
+	handler := stream.Handler.(*moqt.PubHandler)
+	handler.SubscribeOk(stream)
+
 	log.Debug().Msgf("Handing Stream  : %s", stream.StreamId)
 
 	var itr uint64 = 0
@@ -75,6 +71,7 @@ func handleStream(stream *moqt.PubStream) {
 		data := []byte(str)
 		stream.Push(itr, data)
 		itr++
+
 		<-time.After(time.Second)
 	}
 

@@ -20,13 +20,13 @@ relay : relaysource cleanrelay
 	bin/relay -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
 
 pub : pubsource
-	bin/pub -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
+	bin/pub -debug
 
 counter : pubsource
-	bin/counter | bin/pub -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
+	bin/counter | bin/pub -debug
 
 sub : subsource
-	bin/sub -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
+	bin/sub -debug
 
 relay_prod : relaysource
 	env MOQT_CERT_PATH=/etc/letsencrypt/live/in.dineshadhi.com/fullchain.pem MOQT_KEY_PATH=/etc/letsencrypt/live/in.dineshadhi.com/privkey.pem bin/relay

@@ -23,12 +23,7 @@ func main() {
 		http.ListenAndServe(":8080", nil)
 	}()
 
-	ENVCERTPATH := os.Getenv("MOQT_CERT_PATH")
-	ENVKEYPATH := os.Getenv("MOQT_KEY_PATH")
-
 	debug := flag.Bool("debug", false, "sets log level to debug")
-	KEYPATH := flag.String("keypath", ENVKEYPATH, "Keypath")
-	CERTPATH := flag.String("certpath", ENVCERTPATH, "CertPath")
 	flag.Parse()
 
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
@@ -43,9 +38,7 @@ func main() {
 	}
 
 	Options := moqt.DialerOptions{
-		CertPath: *CERTPATH,
-		KeyPath:  *KEYPATH,
-		ALPNs:    ALPNS,
+		ALPNs: ALPNS,
 		QuicConfig: &quic.Config{
 			EnableDatagrams: true,
 		},
@@ -54,11 +47,21 @@ func main() {
 	sub := api.NewMOQTSubscriber(Options, "bbb", RELAY)
 	sub.Run()
 
-	sub.Subscribe("counter", 0)
+	sub.Subscribe(".catalog", 0)
+
+	go func() {
+		for {
+			ss := <-sub.SubscriptionChan
+			go handleStream(ss)
+		}
+	}()
+
+	<-time.After(time.Second * 5)
+
+	sub.Subscribe(".catalog", 0)
 
 	for {
-		ss := <-sub.SubscriptionChan
-		go handleStream(ss)
+
 	}
 }
 

@@ -10,8 +10,6 @@ import (
 )
 
 type DialerOptions struct {
-	KeyPath    string
-	CertPath   string
 	QuicConfig *quic.Config
 	ALPNs      []string
 }
@@ -26,15 +24,8 @@ func (d *MOQTDialer) Dial(addr string) (*MOQTSession, error) {
 
 	Options := d.Options
 
-	tlsCerts, err := tls.LoadX509KeyPair(Options.CertPath, Options.KeyPath)
-
-	if err != nil {
-		return nil, err
-	}
-
 	tlsConfig := tls.Config{
-		Certificates: []tls.Certificate{tlsCerts},
-		NextProtos:   Options.ALPNs,
+		NextProtos: Options.ALPNs,
 	}
 
 	conn, err := quic.DialAddr(d.Ctx, addr, &tlsConfig, Options.QuicConfig)
