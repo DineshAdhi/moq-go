@@ -11,8 +11,8 @@ import (
 
 type RelayHandler struct {
 	*MOQTSession
-	IncomingStreams   StreamsMap
-	SubscribedStreams StreamsMap
+	IncomingStreams   *StreamsMap
+	SubscribedStreams *StreamsMap
 }
 
 func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
@@ -42,8 +42,8 @@ func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayObjectStr
 	streamid := msg.GetStreamID()
 	subid := uint64(rand.Uint32())
 
-	rs := NewRelayObjectStream(subid, streamid, &publisher.IncomingStreams, publisher.MOQTSession)
-	publisher.IncomingStreams.AddStream(subid, streamid, rs)
+	rs := NewRelayObjectStream(subid, streamid, msg.TrackAlias, publisher.IncomingStreams, publisher.MOQTSession)
+	publisher.IncomingStreams.AddStream(subid, rs)
 
 	msg.SubscribeID = subid
 	publisher.CS.WriteControlMessage(&msg)
@@ -55,12 +55,12 @@ func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayObjectStr
 func (publisher *RelayHandler) GetRelayObjectStream(msg *wire.Subscribe) *RelayObjectStream {
 
 	streamid := msg.GetStreamID()
-	stream, found := publisher.IncomingStreams.StreamIDGetStream(streamid)
+	stream := publisher.IncomingStreams.StreamIDGetStream(streamid)
 
 	var rs *RelayObjectStream
 
 	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm its a nasty implementation. Requires more work.
-	if !found || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
+	if stream == nil || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
 		rs = publisher.SendSubscribe(*msg)
 	} else {
 		rs = stream.(*RelayObjectStream)
@@ -69,7 +69,7 @@ func (publisher *RelayHandler) GetRelayObjectStream(msg *wire.Subscribe) *RelayO
 	return rs
 }
 
-func (subscriber *RelayHandler) DispatchObject(object *MOQTObject) {
+func (subscriber *RelayHandler) DispatchObject(object *wire.MOQTObject) {
 
 	if subid, err := subscriber.SubscribedStreams.GetSubID(object.GetStreamID()); err == nil {
 
@@ -114,7 +114,7 @@ func (publisher *RelayHandler) ProcessTracks() {
 
 		if rs, found := publisher.IncomingStreams.SubIDGetStream(subid).(*RelayObjectStream); found {
 
-			object := NewMOQTObject(header, rs.streamid, reader)
+			object := wire.NewMOQTObject(header, rs.streamid, reader)
 			rs.AddObject(object)
 
 		} else {
@@ -169,7 +169,7 @@ func (subscriber *RelayHandler) HandleSubscribe(msg *wire.Subscribe) {
 	os := pub.GetRelayObjectStream(msg)
 	os.AddSubscriber(msg.SubscribeID, subscriber.MOQTSession)
 
-	subscriber.SubscribedStreams.AddStream(msg.SubscribeID, msg.GetStreamID(), os)
+	subscriber.SubscribedStreams.AddStream(msg.SubscribeID, os)
 }
 
 func (subscriber *RelayHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {

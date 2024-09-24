@@ -1,6 +1,7 @@
 package moqt
 
 import (
+	"moq-go/moqt/wire"
 	"sync"
 	"time"
 
@@ -16,14 +17,27 @@ type RelayObjectStream struct {
 	streamsmap     *StreamsMap
 	subid          uint64
 	streamid       string
+	alias          uint64
 	subscribers    map[string]*RelayHandler
 	subscriberlock sync.RWMutex
 	objectlock     sync.RWMutex
-	objects        map[string]*MOQTObject
+	objects        map[string]*wire.MOQTObject
 	stopCleanup    bool
 }
 
-func NewRelayObjectStream(subid uint64, streamid string, sm *StreamsMap, session *MOQTSession) *RelayObjectStream {
+func (rs RelayObjectStream) GetStreamID() string {
+	return rs.streamid
+}
+
+func (rs RelayObjectStream) GetSubID() uint64 {
+	return rs.subid
+}
+
+func (rs RelayObjectStream) GetAlias() uint64 {
+	return rs.alias
+}
+
+func NewRelayObjectStream(subid uint64, streamid string, alias uint64, sm *StreamsMap, session *MOQTSession) *RelayObjectStream {
 
 	os := RelayObjectStream{
 		MOQTSession:    session,
@@ -33,7 +47,7 @@ func NewRelayObjectStream(subid uint64, streamid string, sm *StreamsMap, session
 		subscriberlock: sync.RWMutex{},
 		objectlock:     sync.RWMutex{},
 		subscribers:    map[string]*RelayHandler{},
-		objects:        map[string]*MOQTObject{},
+		objects:        map[string]*wire.MOQTObject{},
 		stopCleanup:    false,
 	}
 
@@ -107,7 +121,7 @@ func (os *RelayObjectStream) RemoveSubscriber(sessionid string) {
 	delete(os.subscribers, sessionid)
 }
 
-func (os *RelayObjectStream) AddObject(object *MOQTObject) {
+func (os *RelayObjectStream) AddObject(object *wire.MOQTObject) {
 	os.objectlock.Lock()
 	os.objects[object.Header.GetObjectKey()] = object
 	os.objectlock.Unlock()
@@ -117,7 +131,7 @@ func (os *RelayObjectStream) AddObject(object *MOQTObject) {
 	os.NotifySubscribers(object)
 }
 
-func (os *RelayObjectStream) NotifySubscribers(object *MOQTObject) {
+func (os *RelayObjectStream) NotifySubscribers(object *wire.MOQTObject) {
 	os.subscriberlock.RLock()
 	defer os.subscriberlock.RUnlock()
 

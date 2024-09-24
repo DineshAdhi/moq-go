@@ -1,21 +1,29 @@
-clean:
-	rm -f bin/relay bin/pub bin/sub
+cleanpub:
+	rm -f bin/oub
 
-relaysource : examples/relay/relay.go clean
+cleansub:
+	rm -f bin/sub
+
+cleanrelay:
+	rm -f bin/relay
+
+relaysource : examples/relay/relay.go cleanrelay
 	go build -o bin/relay examples/relay/relay.go
 
-
-pubsource : examples/pub/pub.go clean
+pubsource : examples/pub/pub.go cleanpub
 	go build -o bin/pub examples/pub/pub.go
 
-subsource : examples/sub/sub.go clean
+subsource : examples/sub/sub.go cleansub
 	go build -o bin/sub examples/sub/sub.go
 
-relay : relaysource
+relay : relaysource cleanrelay
 	bin/relay -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
 
 pub : pubsource
 	bin/pub -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
+
+counter : pubsource
+	bin/counter | bin/pub -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug
 
 sub : subsource
 	bin/sub -certpath=./examples/certs/localhost.crt -keypath=./examples/certs/localhost.key -debug

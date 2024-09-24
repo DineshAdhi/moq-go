@@ -102,12 +102,6 @@ func (s *MOQTSession) SendUnsubscribe(subid uint64) {
 	s.CS.WriteControlMessage(msg)
 }
 
-func (s *MOQTSession) SendAnnounce(namespace string) {
-	s.CS.WriteControlMessage(&wire.Announce{
-		TrackNameSpace: namespace,
-	})
-}
-
 func (s *MOQTSession) InitiateHandshake() {
 	cs, err := s.Conn.OpenStream()
 

@@ -1,10 +1,9 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"moq-go/moqt"
-	"moq-go/moqt/wire"
+	"moq-go/moqt/api"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 )
 
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
+const RELAY = "127.0.0.1:4443"
 
 func main() {
 	go func() {
@@ -51,30 +51,22 @@ func main() {
 		},
 	}
 
-	dialer := moqt.MOQTDialer{
-		Options: Options,
-		Role:    wire.ROLE_PUBLISHER,
-		Ctx:     context.Background(),
-	}
+	sub := api.NewMOQTSubscriber(Options, "bbb", RELAY)
+	sub.Run()
 
-	session, err := dialer.Dial("127.0.0.1:4443")
-
-	if err != nil {
-		log.Error().Msgf("[Error Connecting to Relay][%s]", err)
-		return
-	}
-
-	submsg := wire.Subscribe{
-		SubscribeID:    1,
-		TrackAlias:     0,
-		TrackNameSpace: "bbb",
-		TrackName:      "dumeel",
-		FilterType:     wire.LatestGroup,
-	}
-
-	session.SendSubscribe(&submsg)
+	sub.Subscribe("counter", 0)
 
 	for {
+		ss := <-sub.SubscriptionChan
+		go handleStream(ss)
+	}
+}
 
+func handleStream(ss *moqt.SubStream) {
+	for {
+		toject := <-ss.ObjectChan
+		data := string(toject.Payload[:])
+
+		log.Debug().Msgf("Sub Data : %s", data)
 	}
 }

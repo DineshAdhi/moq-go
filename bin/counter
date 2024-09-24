@@ -1,0 +1,7 @@
+#!/bin/bash
+
+while true; do
+    # date +%s
+    echo "dinesh"
+    sleep 1
+done

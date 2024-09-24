@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
 	"flag"
+	"fmt"
 	"moq-go/moqt"
-	"moq-go/moqt/wire"
+	"moq-go/moqt/api"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,6 +19,7 @@ import (
 const PORT = 4443
 
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
+const RELAY = "127.0.0.1:4443"
 
 func main() {
 
@@ -54,22 +55,37 @@ func main() {
 		},
 	}
 
-	dialer := moqt.MOQTDialer{
-		Options: Options,
-		Role:    wire.ROLE_PUBLISHER,
-		Ctx:     context.Background(),
-	}
-
-	session, err := dialer.Dial("127.0.0.1:4443")
-
-	if err != nil {
-		log.Error().Msgf("[Error connecting][%s]", err)
-		return
-	}
-
-	session.SendAnnounce("bbb")
+	pub := api.NewMOQTPublisher(Options, "bbb", RELAY)
+	pub.Run()
 
 	for {
-
+		stream := <-pub.SubscriptionChan
+		go handleStream(stream)
 	}
+}
+
+func handleStream(stream *moqt.PubStream) {
+
+	log.Debug().Msgf("Handing Stream  : %s", stream.StreamId)
+
+	var itr uint64 = 0
+
+	for {
+		str := fmt.Sprintf("Dinesh %d", itr)
+		data := []byte(str)
+		stream.Push(itr, data)
+		itr++
+		<-time.After(time.Second)
+	}
+
+	// data := [6]byte{}
+
+	// for {
+	// 	n, err := os.Stdin.Read(data[:])
+	// 	if err != nil {
+	// 		stream.Push(itr, data[:n])
+	// 		log.Debug().Msgf("Pusing : %s", string(data[:n]))
+	// 		itr++
+	// 	}
+	// }
 }

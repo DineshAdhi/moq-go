@@ -90,13 +90,14 @@ func (cs *ControlStream) handleSetupMessage(m wire.MOQTMessage) {
 
 		cs.ishandshakedone = true
 		cs.HandshakeDone <- true
-		cs.Slogger.Info().Msgf("[Handshake Success]")
 
 		serverSetup := wire.NewServerSetup(wire.DRAFT_04, wire.Parameters{
 			wire.ROLE_PARAM: wire.NewIntParameter(wire.ROLE_PARAM, cs.LocalRole),
 		})
 
 		cs.WriteControlMessage(&serverSetup)
+
+		cs.Slogger.Info().Msgf("[Handshake Success]")
 
 	case wire.SERVER_SETUP:
 
