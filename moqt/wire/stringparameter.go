@@ -2,6 +2,7 @@ package wire
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -19,7 +20,7 @@ func ParseVarIntString(reader quicvarint.Reader) (string, error) {
 	}
 
 	data := make([]byte, len)
-	n, err := reader.Read(data)
+	n, err := io.ReadFull(reader, data)
 
 	if err != nil {
 		return "", err

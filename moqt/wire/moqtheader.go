@@ -17,7 +17,7 @@ type MOQTObjectHeader interface {
 	Type() uint64
 	GetSubID() uint64
 	GetTrackAlias() uint64
-	GetObjectKey() string
+	GetGroupKey() string
 	GetGroupID() uint64
 	Parse(quicvarint.Reader) error
 	GetBytes(uint64) []byte
@@ -74,7 +74,7 @@ func (gh *GroupHeader) GetTrackAlias() uint64 {
 	return gh.TrackAlias
 }
 
-func (gh *GroupHeader) GetObjectKey() string {
+func (gh *GroupHeader) GetGroupKey() string {
 	return fmt.Sprintf("%X_%d", gh.TrackAlias, gh.GroupID)
 }
 

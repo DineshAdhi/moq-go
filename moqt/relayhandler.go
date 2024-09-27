@@ -1,10 +1,13 @@
 package moqt
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"moq-go/moqt/wire"
 	"strings"
+	"sync"
 
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog/log"
 )
@@ -13,6 +16,9 @@ type RelayHandler struct {
 	*MOQTSession
 	IncomingStreams   *StreamsMap
 	SubscribedStreams *StreamsMap
+	ObjectStreams     map[string]quic.SendStream
+	ObjectStreamsLock sync.RWMutex
+	ObjectChan        chan *wire.TrackObject
 }
 
 func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
@@ -23,6 +29,15 @@ func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
 
 	handler.IncomingStreams = NewStreamsMap(session)
 	handler.SubscribedStreams = NewStreamsMap(session)
+	handler.ObjectStreams = map[string]quic.SendStream{}
+	handler.ObjectStreamsLock = sync.RWMutex{}
+	handler.ObjectChan = make(chan *wire.TrackObject)
+
+	go func() {
+		for object := range handler.ObjectChan {
+			handler.DispatchObject(object)
+		}
+	}()
 
 	return handler
 }
@@ -69,27 +84,59 @@ func (publisher *RelayHandler) GetRelayObjectStream(msg *wire.Subscribe) *RelayO
 	return rs
 }
 
-func (subscriber *RelayHandler) DispatchObject(object *wire.MOQTObject) {
+func (subscriber *RelayHandler) CreateObjectSream(header wire.MOQTObjectHeader, streamid string) (quic.SendStream, error) {
+	subscriber.ObjectStreamsLock.Lock()
+	defer subscriber.ObjectStreamsLock.Unlock()
 
-	if subid, err := subscriber.SubscribedStreams.GetSubID(object.GetStreamID()); err == nil {
+	groupKey := header.GetGroupKey()
 
+	if stream, ok := subscriber.ObjectStreams[groupKey]; ok {
+		return stream, nil
+	} else {
 		unistream, err := subscriber.Conn.OpenUniStream()
 
 		if err != nil {
-			// s.Slogger.Error().Msgf("[Error Opening Unistream][%s]", err)
-			return
+			return nil, err
 		}
 
-		defer unistream.Close()
+		if subid, err := subscriber.SubscribedStreams.GetSubID(streamid); err == nil {
 
-		groupHeader := object.Header
-		unistream.Write(groupHeader.GetBytes(subid))
+			unistream.Write(header.GetBytes(subid))
+			subscriber.ObjectStreams[groupKey] = unistream
 
-		reader := object.NewReader()
-		reader.Pipe(unistream)
-	} else {
-		subscriber.Slogger.Error().Msgf("[Unable to find DownStream SubID for StreamID][Stream ID - %s]", object.GetStreamID())
+			log.Debug().Msgf("New Outgoing Object STream - %s", groupKey)
+			return unistream, nil
+
+		} else {
+			return nil, fmt.Errorf("[Unable to find DownStream SubID for StreamID][Stream ID - %s]", streamid)
+		}
 	}
+}
+
+func (subscriber *RelayHandler) DeleteObjectStream(header wire.MOQTObjectHeader) {
+	subscriber.ObjectStreamsLock.Lock()
+	defer subscriber.ObjectStreamsLock.Unlock()
+
+	groupKey := header.GetGroupKey()
+
+	if stream, ok := subscriber.ObjectStreams[groupKey]; ok {
+		stream.Close()
+		delete(subscriber.ObjectStreams, groupKey)
+		log.Debug().Msgf("Deleting Object STream - %s", groupKey)
+	}
+}
+
+func (subscriber *RelayHandler) DispatchObject(object *wire.TrackObject) {
+
+	subscriber.ObjectStreamsLock.RLock()
+	defer subscriber.ObjectStreamsLock.RUnlock()
+
+	if unistream, ok := subscriber.ObjectStreams[object.Header.GetGroupKey()]; ok {
+		data := object.GetBytes()
+		unistream.Write(data)
+	}
+
+	// log.Debug().Msgf("Dispatched Data Len - %d", len(data))
 }
 
 func (publisher *RelayHandler) ProcessTracks() {
@@ -110,12 +157,13 @@ func (publisher *RelayHandler) ProcessTracks() {
 			continue
 		}
 
+		publisher.Slogger.Debug().Msgf("New Incoming Stream - %s", header.GetGroupKey())
+
 		subid := header.GetSubID()
 
 		if rs, found := publisher.IncomingStreams.SubIDGetStream(subid).(*RelayObjectStream); found {
 
-			object := wire.NewMOQTObject(header, rs.streamid, reader)
-			rs.AddObject(object)
+			go rs.ProcessObjects(unistream, header)
 
 		} else {
 			publisher.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", header.GetTrackAlias())

@@ -1,6 +1,8 @@
 package h3
 
 import (
+	"io"
+
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
@@ -17,7 +19,7 @@ func (dframe *DataFrame) Parse(reader quicvarint.Reader) error {
 	}
 
 	data := make([]byte, len)
-	reader.Read(data)
+	io.ReadFull(reader, data)
 
 	dframe.data = data
 

@@ -2,6 +2,7 @@ package h3
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -73,7 +74,7 @@ func ParseFrame(reader quicvarint.Reader) (uint64, Frame, error) {
 		}
 
 		data := make([]byte, len)
-		reader.Read(data)
+		io.ReadFull(reader, data)
 		return ftype, nil, fmt.Errorf("[Unkown Frame][Type - %X]", ftype)
 	}
 

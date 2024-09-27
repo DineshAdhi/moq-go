@@ -3,8 +3,9 @@ package moqt
 import (
 	"moq-go/moqt/wire"
 	"sync"
-	"time"
 
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog/log"
 )
 
@@ -21,19 +22,19 @@ type RelayObjectStream struct {
 	subscribers    map[string]*RelayHandler
 	subscriberlock sync.RWMutex
 	objectlock     sync.RWMutex
-	objects        map[string]*wire.MOQTObject
+	objects        map[string]*wire.TrackObject
 	stopCleanup    bool
 }
 
-func (rs RelayObjectStream) GetStreamID() string {
+func (rs *RelayObjectStream) GetStreamID() string {
 	return rs.streamid
 }
 
-func (rs RelayObjectStream) GetSubID() uint64 {
+func (rs *RelayObjectStream) GetSubID() uint64 {
 	return rs.subid
 }
 
-func (rs RelayObjectStream) GetAlias() uint64 {
+func (rs *RelayObjectStream) GetAlias() uint64 {
 	return rs.alias
 }
 
@@ -47,25 +48,25 @@ func NewRelayObjectStream(subid uint64, streamid string, alias uint64, sm *Strea
 		subscriberlock: sync.RWMutex{},
 		objectlock:     sync.RWMutex{},
 		subscribers:    map[string]*RelayHandler{},
-		objects:        map[string]*wire.MOQTObject{},
+		objects:        map[string]*wire.TrackObject{},
 		stopCleanup:    false,
 	}
 
-	go func() {
-		ticker := time.NewTicker(time.Second * CLEAN_UP_INTERVAL)
+	// go func() {
+	// 	ticker := time.NewTicker(time.Second * CLEAN_UP_INTERVAL)
 
-		closechannel := make(chan bool)
+	// 	closechannel := make(chan bool)
 
-		for {
-			select {
-			case <-ticker.C:
-				os.CleanUp(closechannel)
-			case <-closechannel:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
+	// 	for {
+	// 		select {
+	// 		case <-ticker.C:
+	// 			os.CleanUp(closechannel)
+	// 		case <-closechannel:
+	// 			ticker.Stop()
+	// 			return
+	// 		}
+	// 	}
+	// }()
 
 	return &os
 }
@@ -121,21 +122,38 @@ func (os *RelayObjectStream) RemoveSubscriber(sessionid string) {
 	delete(os.subscribers, sessionid)
 }
 
-func (os *RelayObjectStream) AddObject(object *wire.MOQTObject) {
-	os.objectlock.Lock()
-	os.objects[object.Header.GetObjectKey()] = object
-	os.objectlock.Unlock()
+func (os *RelayObjectStream) ProcessObjects(stream quic.ReceiveStream, header wire.MOQTObjectHeader) {
+	reader := quicvarint.NewReader(stream)
 
-	go object.ParseFromStream(object.Reader)
+	for _, sub := range os.subscribers {
+		_, err := sub.CreateObjectSream(header, os.streamid)
 
-	os.NotifySubscribers(object)
+		if err != nil {
+			log.Error().Msgf("Unable to create Obejct Stream %s", err)
+		}
+	}
+
+	for {
+		object := wire.NewTrackObject(os.streamid, header)
+		err := object.Parse(reader)
+		os.NotifySubscribers(object)
+
+		if err != nil {
+			break
+		}
+	}
+
+	for _, sub := range os.subscribers {
+		sub.DeleteObjectStream(header)
+	}
+
 }
 
-func (os *RelayObjectStream) NotifySubscribers(object *wire.MOQTObject) {
+func (os *RelayObjectStream) NotifySubscribers(object *wire.TrackObject) {
 	os.subscriberlock.RLock()
 	defer os.subscriberlock.RUnlock()
 
-	for _, subscriber := range os.subscribers {
-		go subscriber.DispatchObject(object)
+	for _, sub := range os.subscribers {
+		sub.DispatchObject(object)
 	}
 }

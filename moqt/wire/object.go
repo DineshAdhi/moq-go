@@ -1,19 +1,47 @@
 package wire
 
-import "github.com/quic-go/quic-go/quicvarint"
+import (
+	"io"
+	"time"
 
-// {
-//   Object ID (i),
-//   Object Payload Length (i),
-//   [Object Status (i)],
-//   Object Payload (..),
-// }
+	"github.com/quic-go/quic-go/quicvarint"
+)
+
+const (
+	OBJECT_EXPIRY_TIME = 10
+)
 
 type TrackObject struct {
-	ObjectID uint64
-	Length   uint64
-	Status   uint64
-	Payload  []byte
+	ObjectID  uint64
+	Length    uint64
+	Status    uint64
+	Payload   []byte
+	CreatedAt time.Time
+	StreamID  string
+	Header    MOQTObjectHeader
+}
+
+func NewTrackObject(streamid string, header MOQTObjectHeader) *TrackObject {
+	object := &TrackObject{}
+	object.CreatedAt = time.Now()
+	object.StreamID = streamid
+	object.Header = header
+
+	return object
+}
+
+func (object *TrackObject) GetStreamID() string {
+	return object.StreamID
+}
+
+func (object *TrackObject) IsExpired() bool {
+	now := time.Now()
+
+	if now.Sub(object.CreatedAt).Seconds() >= OBJECT_EXPIRY_TIME {
+		return true
+	}
+
+	return false
 }
 
 func (obj *TrackObject) Parse(reader quicvarint.Reader) error {
@@ -34,7 +62,11 @@ func (obj *TrackObject) Parse(reader quicvarint.Reader) error {
 		}
 	} else {
 		obj.Payload = make([]byte, obj.Length)
-		reader.Read(obj.Payload)
+		_, err := io.ReadFull(reader, obj.Payload)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

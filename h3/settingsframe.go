@@ -3,6 +3,7 @@ package h3
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -97,7 +98,7 @@ func (sframe *SettingsFrame) Parse(reader quicvarint.Reader) error {
 	}
 
 	data := make([]byte, length)
-	_, err = reader.Read(data)
+	_, err = io.ReadFull(reader, data)
 
 	if err != nil {
 		return err

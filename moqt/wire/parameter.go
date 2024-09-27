@@ -2,6 +2,7 @@ package wire
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/quic-go/quic-go/quicvarint"
 )
@@ -121,7 +122,7 @@ func (params Parameters) Parse(reader quicvarint.Reader) error {
 			}
 
 			discardData := make([]byte, len)
-			reader.Read(discardData)
+			io.ReadFull(reader, discardData)
 
 			return fmt.Errorf("[Unknown Param]")
 		}

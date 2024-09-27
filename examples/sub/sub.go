@@ -47,7 +47,7 @@ func main() {
 	sub := api.NewMOQTSubscriber(Options, "bbb", RELAY)
 	sub.Run()
 
-	sub.Subscribe(".catalog", 0)
+	sub.Subscribe("2.m4s", 0)
 
 	go func() {
 		for {
@@ -55,14 +55,6 @@ func main() {
 			go handleStream(ss)
 		}
 	}()
-
-	<-time.After(time.Second * 5)
-
-	sub.Subscribe(".catalog", 0)
-
-	for {
-
-	}
 }
 
 func handleStream(ss *moqt.SubStream) {
