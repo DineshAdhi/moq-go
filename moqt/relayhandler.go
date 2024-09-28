@@ -31,13 +31,6 @@ func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
 	handler.SubscribedStreams = NewStreamsMap(session)
 	handler.ObjectStreams = map[string]quic.SendStream{}
 	handler.ObjectStreamsLock = sync.RWMutex{}
-	handler.ObjectChan = make(chan *wire.TrackObject)
-
-	go func() {
-		for object := range handler.ObjectChan {
-			handler.DispatchObject(object)
-		}
-	}()
 
 	return handler
 }
@@ -126,17 +119,19 @@ func (subscriber *RelayHandler) DeleteObjectStream(header wire.MOQTObjectHeader)
 	}
 }
 
-func (subscriber *RelayHandler) DispatchObject(object *wire.TrackObject) {
+func (subscriber *RelayHandler) DispatchObject(obj *wire.TrackObject) {
 
 	subscriber.ObjectStreamsLock.RLock()
 	defer subscriber.ObjectStreamsLock.RUnlock()
 
-	if unistream, ok := subscriber.ObjectStreams[object.Header.GetGroupKey()]; ok {
-		data := object.GetBytes()
-		unistream.Write(data)
-	}
+	groupKey := obj.Header.GetGroupKey()
 
-	// log.Debug().Msgf("Dispatched Data Len - %d", len(data))
+	if unistream, ok := subscriber.ObjectStreams[groupKey]; ok {
+		data := obj.GetBytes()
+		unistream.Write(data)
+	} else {
+		log.Debug().Msgf("Unable to Dispatch %s", groupKey)
+	}
 }
 
 func (publisher *RelayHandler) ProcessTracks() {
