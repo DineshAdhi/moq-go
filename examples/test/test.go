@@ -16,17 +16,18 @@ func main() {
 	for i := 0; i < 2; i++ {
 
 		go func(i int) {
+
 			itr := 0
 			for {
 				cond.L.Lock()
 				cond.Wait()
+				length := len(data)
+				cond.L.Unlock()
 
-				for itr < len(data) {
+				for itr < length {
 					log.Printf("Consumer %d - Data %d", i, data[itr])
 					itr++
 				}
-
-				cond.L.Unlock()
 			}
 		}(i)
 	}
@@ -34,12 +35,12 @@ func main() {
 	itr := 0
 
 	for {
+		cond.L.Lock()
 		data = append(data, itr)
 		itr++
 
-		if itr%5 == 0 {
-			cond.Broadcast()
-		}
+		cond.Broadcast()
+		cond.L.Unlock()
 
 		time.Sleep(time.Second)
 	}

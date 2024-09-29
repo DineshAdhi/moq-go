@@ -1,24 +1,20 @@
 package moqt
 
 import (
-	"fmt"
+	"io"
 	"math/rand/v2"
 	"moq-go/moqt/wire"
 	"strings"
 	"sync"
 
-	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog/log"
 )
 
 type RelayHandler struct {
 	*MOQTSession
-	IncomingStreams   *StreamsMap
-	SubscribedStreams *StreamsMap
-	ObjectStreams     map[string]quic.SendStream
-	ObjectStreamsLock sync.RWMutex
-	ObjectChan        chan *wire.TrackObject
+	IncomingStreams   StreamsMap[*RelayStream]
+	SubscribedStreams StreamsMap[*RelayStream]
 }
 
 func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
@@ -27,31 +23,35 @@ func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
 		MOQTSession: session,
 	}
 
-	handler.IncomingStreams = NewStreamsMap(session)
-	handler.SubscribedStreams = NewStreamsMap(session)
-	handler.ObjectStreams = map[string]quic.SendStream{}
-	handler.ObjectStreamsLock = sync.RWMutex{}
+	handler.IncomingStreams = NewStreamsMap[*RelayStream](session)
+	handler.SubscribedStreams = NewStreamsMap[*RelayStream](session)
 
 	return handler
 }
 
-func (subscriber *RelayHandler) SendSubscribeOk(streamid string, okm *wire.SubscribeOk) {
-	if subid, err := subscriber.SubscribedStreams.GetSubID(streamid); err == nil {
-		subokmsg := *okm
-		subokmsg.SubscribeID = subid
+func (rh *RelayHandler) HandleClose() {
+	for _, rs := range rh.SubscribedStreams.streams {
+		rs.RemoveSubscriber(rh.Id)
+	}
+}
 
-		subscriber.CS.WriteControlMessage(&subokmsg)
+func (subscriber *RelayHandler) SendSubscribeOk(streamid string, okm wire.SubscribeOk) {
+	if subid, err := subscriber.SubscribedStreams.GetSubID(streamid); err == nil {
+		okm.SubscribeID = subid
+		subscriber.CS.WriteControlMessage(&okm)
 	}
 }
 
 // For publishers, a send subscribe will always yield a ObjectStream
-func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayObjectStream {
+func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayStream {
 
 	streamid := msg.GetStreamID()
 	subid := uint64(rand.Uint32())
 
-	rs := NewRelayObjectStream(subid, streamid, msg.TrackAlias, publisher.IncomingStreams, publisher.MOQTSession)
+	rs := NewRelayStream(subid, streamid, &publisher.IncomingStreams)
 	publisher.IncomingStreams.AddStream(subid, rs)
+
+	publisher.Slogger.Info().Msgf("[New Incoming Stream][SubID - %x][Stream ID - %s]", subid, streamid)
 
 	msg.SubscribeID = subid
 	publisher.CS.WriteControlMessage(&msg)
@@ -59,109 +59,102 @@ func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayObjectStr
 	return rs
 }
 
-// Fetches the Object Stream with the StreamID (OR) Forwards the Subscribe and returns the RelayObjectStream Placeholder
-func (publisher *RelayHandler) GetRelayObjectStream(msg *wire.Subscribe) *RelayObjectStream {
+// Fetches the Object Stream with the StreamID (OR) Forwards the Subscribe and returns the ObjectStream Placeholder
+func (publisher *RelayHandler) GetObjectStream(msg *wire.Subscribe) *RelayStream {
 
 	streamid := msg.GetStreamID()
 	stream := publisher.IncomingStreams.StreamIDGetStream(streamid)
 
-	var rs *RelayObjectStream
+	var rs *RelayStream
 
 	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm its a nasty implementation. Requires more work.
 	if stream == nil || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
 		rs = publisher.SendSubscribe(*msg)
 	} else {
-		rs = stream.(*RelayObjectStream)
+		rs = stream.(*RelayStream)
 	}
 
 	return rs
 }
 
-func (subscriber *RelayHandler) CreateObjectSream(header wire.MOQTObjectHeader, streamid string) (quic.SendStream, error) {
-	subscriber.ObjectStreamsLock.Lock()
-	defer subscriber.ObjectStreamsLock.Unlock()
+func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream, wg *sync.WaitGroup) {
 
-	groupKey := header.GetGroupKey()
+	streamid := stream.GetStreamID()
+	rs := sub.SubscribedStreams.StreamIDGetStream(streamid)
 
-	if stream, ok := subscriber.ObjectStreams[groupKey]; ok {
-		return stream, nil
-	} else {
-		unistream, err := subscriber.Conn.OpenUniStream()
+	if rs == nil {
+		log.Error().Msgf("[Cannot find SubID for Stream - %s]", streamid)
+		wg.Done()
+		return
+	}
+
+	subid := rs.GetSubID()
+
+	unistream, err := sub.Conn.OpenUniStream()
+
+	if err != nil {
+		sub.Slogger.Error().Msgf("[Cannot Open Unistream - %s]", err)
+		wg.Done()
+		return
+	}
+
+	unistream.Write(stream.GetHeaderSubIDBytes(subid))
+	wg.Done()
+
+	itr := 0
+
+	for {
+		itr, err = stream.Pipe(itr, unistream)
+
+		if err == io.EOF {
+			break
+		}
 
 		if err != nil {
-			return nil, err
-		}
-
-		if subid, err := subscriber.SubscribedStreams.GetSubID(streamid); err == nil {
-
-			unistream.Write(header.GetBytes(subid))
-			subscriber.ObjectStreams[groupKey] = unistream
-
-			log.Debug().Msgf("New Outgoing Object STream - %s", groupKey)
-			return unistream, nil
-
-		} else {
-			return nil, fmt.Errorf("[Unable to find DownStream SubID for StreamID][Stream ID - %s]", streamid)
+			log.Error().Msgf("[Error Piping Stream to Unistream][%s]", err)
+			break
 		}
 	}
+
+	unistream.Close()
 }
 
-func (subscriber *RelayHandler) DeleteObjectStream(header wire.MOQTObjectHeader) {
-	subscriber.ObjectStreamsLock.Lock()
-	defer subscriber.ObjectStreamsLock.Unlock()
-
-	groupKey := header.GetGroupKey()
-
-	if stream, ok := subscriber.ObjectStreams[groupKey]; ok {
-		stream.Close()
-		delete(subscriber.ObjectStreams, groupKey)
-		log.Debug().Msgf("Deleting Object STream - %s", groupKey)
-	}
-}
-
-func (subscriber *RelayHandler) DispatchObject(obj *wire.TrackObject) {
-
-	subscriber.ObjectStreamsLock.RLock()
-	defer subscriber.ObjectStreamsLock.RUnlock()
-
-	groupKey := obj.Header.GetGroupKey()
-
-	if unistream, ok := subscriber.ObjectStreams[groupKey]; ok {
-		data := obj.GetBytes()
-		unistream.Write(data)
-	} else {
-		log.Debug().Msgf("Unable to Dispatch %s", groupKey)
-	}
-}
-
-func (publisher *RelayHandler) ProcessTracks() {
+func (publisher *RelayHandler) ProcessObjectStreams() {
 
 	for {
 		unistream, err := publisher.Conn.AcceptUniStream(publisher.ctx)
 
 		if err != nil {
-			log.Error().Msgf("[Error Acceping Unistream][%s]", err)
-			break
+			publisher.Slogger.Error().Msgf("[Error Accepting Unistream][%s]", err)
+			return
 		}
 
 		reader := quicvarint.NewReader(unistream)
-		header, err := wire.ParseMOQTObjectHeader(reader)
+
+		htype, err := quicvarint.Read(reader)
 
 		if err != nil {
-			publisher.Slogger.Error().Msgf("[Error Parsing Object Header][%s]", err)
+			publisher.Slogger.Error().Msgf("[Unable to read header type][%s]", err)
+			return
+		}
+
+		switch htype {
+		case wire.STREAM_HEADER_GROUP, wire.STREAM_HEADER_TRACK:
+			break
+		default:
 			continue
 		}
 
-		publisher.Slogger.Debug().Msgf("New Incoming Stream - %s", header.GetGroupKey())
+		subid, err := quicvarint.Read(reader)
 
-		subid := header.GetSubID()
+		if err != nil {
+			return
+		}
 
-		if rs, found := publisher.IncomingStreams.SubIDGetStream(subid).(*RelayObjectStream); found {
-
-			go rs.ProcessObjects(unistream, header)
-
+		if rs := publisher.IncomingStreams.SubIDGetStream(subid); rs != nil {
+			go rs.ProcessObjects(htype, subid, reader)
 		} else {
-			publisher.Slogger.Error().Msgf("[Object Stream Not Found][Alias - %d]", header.GetTrackAlias())
+			log.Error().Msgf("[Stream not found for SubID - %X]", subid)
 		}
 	}
 }
@@ -185,11 +178,8 @@ func (publisher *RelayHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
 
 	subid := msg.SubscribeID
 
-	if rs, ok := publisher.IncomingStreams.SubIDGetStream(subid).(*RelayObjectStream); ok {
-
-		for _, sub := range rs.subscribers {
-			sub.SendSubscribeOk(rs.streamid, msg)
-		}
+	if rs := publisher.IncomingStreams.SubIDGetStream(subid); rs != nil {
+		rs.ForwardSubscribeOk(*msg)
 	}
 }
 
@@ -209,10 +199,16 @@ func (subscriber *RelayHandler) HandleSubscribe(msg *wire.Subscribe) {
 		return
 	}
 
-	os := pub.GetRelayObjectStream(msg)
-	os.AddSubscriber(msg.SubscribeID, subscriber.MOQTSession)
+	rs := pub.GetObjectStream(msg)
 
-	subscriber.SubscribedStreams.AddStream(msg.SubscribeID, os)
+	if rs == nil {
+		log.Error().Msgf("[Object Stream not found][%s]", msg.GetStreamID())
+	}
+
+	rs.AddSubscriber(subscriber)
+
+	subscriber.Slogger.Info().Msgf("[Subscribed to Stream - %s]", rs.GetStreamID())
+	subscriber.SubscribedStreams.AddStream(msg.SubscribeID, rs)
 }
 
 func (subscriber *RelayHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
@@ -225,7 +221,7 @@ func (subscriber *RelayHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
 
 	subid := msg.SubscriptionID
 
-	if rs, ok := subscriber.SubscribedStreams.SubIDGetStream(subid).(*RelayObjectStream); ok {
+	if rs := subscriber.SubscribedStreams.SubIDGetStream(subid); rs != nil {
 		rs.RemoveSubscriber(subscriber.Id)
 	}
 }

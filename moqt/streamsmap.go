@@ -2,32 +2,37 @@ package moqt
 
 import (
 	"fmt"
+	"moq-go/moqt/wire"
 	"sync"
-)
 
-// A simple Map util to keep track of the ObjectStream respecitve to its streamid and subid
+	"github.com/quic-go/quic-go/quicvarint"
+)
 
 type ObjectStream interface {
 	GetStreamID() string
 	GetSubID() uint64
-	GetAlias() uint64
+	AddSubscriber(handler *RelayHandler)
+	ForwardSubscribeOk(wire.SubscribeOk)
+	RemoveSubscriber(string)
+	ProcessObjects(uint64, uint64, quicvarint.Reader)
 }
 
-type StreamsMap struct {
+// A simple Map util to keep ObjectStream of the ObjectStream respecitve to its streamid and subid
+type StreamsMap[T ObjectStream] struct {
 	*MOQTSession
-	streams map[uint64]ObjectStream // SubID - ObjectStream
+	streams map[uint64]T // SubID - ObjectStream
 	lock    sync.RWMutex
 }
 
-func NewStreamsMap(s *MOQTSession) *StreamsMap {
-	return &StreamsMap{
+func NewStreamsMap[T ObjectStream](s *MOQTSession) StreamsMap[T] {
+	return StreamsMap[T]{
 		MOQTSession: s,
-		streams:     map[uint64]ObjectStream{},
+		streams:     map[uint64]T{},
 		lock:        sync.RWMutex{},
 	}
 }
 
-func (s *StreamsMap) GetSubID(streamid string) (uint64, error) {
+func (s *StreamsMap[T]) GetSubID(streamid string) (uint64, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -40,20 +45,7 @@ func (s *StreamsMap) GetSubID(streamid string) (uint64, error) {
 	return 0, fmt.Errorf("[SubID not found]")
 }
 
-func (s *StreamsMap) GetAlias(streamid string) (uint64, error) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-
-	for _, stream := range s.streams {
-		if stream.GetStreamID() == streamid {
-			return stream.GetAlias(), nil
-		}
-	}
-
-	return 0, fmt.Errorf("[Alias not found]")
-}
-
-func (s *StreamsMap) StreamIDGetStream(streamid string) ObjectStream {
+func (s *StreamsMap[T]) StreamIDGetStream(streamid string) ObjectStream {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -66,7 +58,7 @@ func (s *StreamsMap) StreamIDGetStream(streamid string) ObjectStream {
 	return nil
 }
 
-func (s *StreamsMap) SubIDGetStream(subid uint64) ObjectStream {
+func (s *StreamsMap[T]) SubIDGetStream(subid uint64) ObjectStream {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -77,14 +69,14 @@ func (s *StreamsMap) SubIDGetStream(subid uint64) ObjectStream {
 	return nil
 }
 
-func (s *StreamsMap) AddStream(subid uint64, os ObjectStream) {
+func (s *StreamsMap[T]) AddStream(subid uint64, os T) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.streams[subid] = os
 }
 
-func (s *StreamsMap) DeleteStream(streamid string) {
+func (s *StreamsMap[T]) DeleteStream(streamid string) {
 
 	if stream := s.StreamIDGetStream(streamid); stream != nil {
 		subid := stream.GetSubID()
