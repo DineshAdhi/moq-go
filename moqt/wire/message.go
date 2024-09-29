@@ -24,6 +24,11 @@ const (
 	SERVER_SETUP         = 0x41
 )
 
+const (
+	STREAM_HEADER_GROUP = 0x51
+	STREAM_HEADER_TRACK = 0x50
+)
+
 func GetMoqMessageString(mtype uint64) string {
 	switch mtype {
 	case SUBSCRIBE:
@@ -56,10 +61,6 @@ func GetMoqMessageString(mtype uint64) string {
 		return "CLIENT_SETUP"
 	case SERVER_SETUP:
 		return "SERVER_SETUP"
-	case STREAM_HEADER_TRACK:
-		return "STREAM_HEADER_TRACK"
-	case STREAM_HEADER_GROUP:
-		return "STREAM_HEADER_GROUP"
 	default:
 		return "UNKNOWN_MESSAGE_TYPE"
 	}

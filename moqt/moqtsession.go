@@ -43,13 +43,13 @@ type MOQTSession struct {
 }
 
 func CreateMOQSession(conn MOQTConnection, LocalRole uint64, mode uint8) (*MOQTSession, error) {
+
 	session := &MOQTSession{}
 	session.Conn = conn
 	session.ctx, session.cancelFunc = context.WithCancel(context.Background())
 	session.Id = strings.Split(uuid.New().String(), "-")[0]
 	session.RemoteRole = 0
 	session.LocalRole = LocalRole
-
 	session.Mode = mode
 	session.HandshakeDone = make(chan bool, 1)
 
@@ -76,6 +76,8 @@ func (s *MOQTSession) Close(code uint64, msg string) {
 
 	s.Slogger.Error().Msgf("[%s][Closing MOQT Session][Code - %d]%s", s.Id, code, msg)
 
+	s.Handler.HandleClose()
+
 	sm.removeSession(s)
 }
 
@@ -87,7 +89,7 @@ func (s *MOQTSession) ServeMOQ() {
 		go s.InitiateHandshake()
 	}
 
-	go s.Handler.ProcessTracks() // Track Processing happens on the respective handlers (relay / pub / sub).
+	go s.Handler.ProcessObjectStreams() // ObjectStream Processing happens on the respective handlers (relay / pub / sub).
 }
 
 func (s *MOQTSession) SendSubscribe(submsg *wire.Subscribe) {
@@ -143,4 +145,8 @@ func (s *MOQTSession) SetRemoteRole(role uint64) error {
 	}
 
 	return nil
+}
+
+func (s *MOQTSession) RelayHandler() *RelayHandler {
+	return s.Handler.(*RelayHandler)
 }

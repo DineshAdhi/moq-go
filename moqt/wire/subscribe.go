@@ -6,20 +6,6 @@ import (
 	"github.com/quic-go/quic-go/quicvarint"
 )
 
-// SUBSCRIBE Message {
-// 	Subscribe ID (i),
-// 	RelayObjectStream Alias (i),
-// 	RelayObjectStream Namespace (b),
-// 	RelayObjectStream Name (b),
-// 	Filter Type (i),
-// 	[StartGroup (i),
-// 	 StartObject (i)],
-// 	[EndGroup (i),
-// 	 EndObject (i)],
-// 	Number of Parameters (i),
-// 	Subscribe Parameters (..) ...
-//   }
-
 const (
 	LatestGroup   = uint64(0x1)
 	LatestObject  = uint64(0x2)
@@ -157,9 +143,9 @@ func (s Subscribe) GetBytes() []byte {
 	return data
 }
 
-// Stream ID is a concat of namespace + track + alias. It makes it unique across all sessions
+// Stream ID is a concat of namespace + ObjectStream + alias. It makes it unique across all sessions
 func (s Subscribe) GetStreamID() string {
-	return fmt.Sprintf("%s_%s_%X", s.TrackNameSpace, s.TrackName, s.TrackAlias)
+	return fmt.Sprintf("%s_%s", s.TrackNameSpace, s.TrackName)
 }
 
 func (s Subscribe) String() string {

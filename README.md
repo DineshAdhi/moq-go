@@ -1,7 +1,7 @@
 
 # MOQT - GO
 
-Simple Implentation of Media Over QUIC Transport (MOQT) in Go, in compliant with the [DRAFT04](https://datatracker.ietf.org/doc/draft-ietf-moq-transport/04/)
+Simple Implentation of Media Over QUIC Transport (MOQT) in Go, in compliant with the [DRAFT04](https://dataObjectStreamer.ietf.org/doc/draft-ietf-moq-transport/04/)
 
 The Publisher and Consumer part are still under development. This repository currently has a working implementation of Relay.
 

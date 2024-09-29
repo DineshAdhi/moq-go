@@ -1,159 +1,113 @@
 package moqt
 
 import (
+	"io"
 	"moq-go/moqt/wire"
 	"sync"
 
-	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog/log"
 )
 
-const (
-	CLEAN_UP_INTERVAL = 20
-)
-
-type RelayObjectStream struct {
-	*MOQTSession
-	streamsmap     *StreamsMap
-	subid          uint64
-	streamid       string
-	alias          uint64
-	subscribers    map[string]*RelayHandler
-	subscriberlock sync.RWMutex
-	objectlock     sync.RWMutex
-	objects        map[string]*wire.TrackObject
-	stopCleanup    bool
+type RelayStream struct {
+	SubID           uint64
+	StreamID        string
+	Map             *StreamsMap[*RelayStream]
+	Subscribers     map[string]*RelayHandler
+	SubscribersLock sync.RWMutex
+	ObjectCache     []wire.Object
 }
 
-func (rs *RelayObjectStream) GetStreamID() string {
-	return rs.streamid
+func (rs *RelayStream) GetSubID() uint64 {
+	return rs.SubID
 }
 
-func (rs *RelayObjectStream) GetSubID() uint64 {
-	return rs.subid
+func (rs *RelayStream) GetStreamID() string {
+	return rs.StreamID
 }
 
-func (rs *RelayObjectStream) GetAlias() uint64 {
-	return rs.alias
+func NewRelayStream(subid uint64, id string, smap *StreamsMap[*RelayStream]) *RelayStream {
+
+	rs := &RelayStream{}
+	rs.SubID = subid
+	rs.StreamID = id
+	rs.Map = smap
+	rs.Subscribers = map[string]*RelayHandler{}
+	rs.SubscribersLock = sync.RWMutex{}
+
+	return rs
 }
 
-func NewRelayObjectStream(subid uint64, streamid string, alias uint64, sm *StreamsMap, session *MOQTSession) *RelayObjectStream {
+func (rs *RelayStream) AddSubscriber(handler *RelayHandler) {
+	rs.SubscribersLock.Lock()
+	defer rs.SubscribersLock.Unlock()
 
-	os := RelayObjectStream{
-		MOQTSession:    session,
-		streamsmap:     sm,
-		subid:          subid,
-		streamid:       streamid,
-		subscriberlock: sync.RWMutex{},
-		objectlock:     sync.RWMutex{},
-		subscribers:    map[string]*RelayHandler{},
-		objects:        map[string]*wire.TrackObject{},
-		stopCleanup:    false,
-	}
-
-	// go func() {
-	// 	ticker := time.NewTicker(time.Second * CLEAN_UP_INTERVAL)
-
-	// 	closechannel := make(chan bool)
-
-	// 	for {
-	// 		select {
-	// 		case <-ticker.C:
-	// 			os.CleanUp(closechannel)
-	// 		case <-closechannel:
-	// 			ticker.Stop()
-	// 			return
-	// 		}
-	// 	}
-	// }()
-
-	return &os
+	rs.Subscribers[handler.Id] = handler
 }
 
-func (os *RelayObjectStream) CleanUp(closechannel chan bool) bool {
-	os.objectlock.Lock()
-	defer os.objectlock.Unlock()
+func (os *RelayStream) RemoveSubscriber(id string) {
+	os.SubscribersLock.Lock()
+	defer os.SubscribersLock.Unlock()
 
-	expiredlist := []string{}
+	delete(os.Subscribers, id)
+}
 
-	for id, obj := range os.objects {
-		if obj.IsExpired() {
-			expiredlist = append(expiredlist, id)
+func (rs *RelayStream) ForwardSubscribeOk(msg wire.SubscribeOk) {
+
+	for _, sub := range rs.Subscribers {
+		if handler := sub.RelayHandler(); handler != nil {
+			handler.SendSubscribeOk(rs.GetStreamID(), msg)
 		}
 	}
+}
 
-	for _, expired := range expiredlist {
-		delete(os.objects, expired)
+func (rs *RelayStream) ForwardStream(stream wire.MOQTStream) {
+	rs.SubscribersLock.RLock()
+	defer rs.SubscribersLock.RUnlock()
+
+	wg := &sync.WaitGroup{}
+
+	for _, sub := range rs.Subscribers {
+		wg.Add(1)
+		go sub.ProcessMOQTStream(stream, wg)
 	}
 
-	if len(os.objects) == 0 {
-		go os.DeleteStream()
-		close(closechannel)
-	}
-
-	return false
+	wg.Wait()
 }
 
-func (os *RelayObjectStream) DeleteStream() {
+func (rs *RelayStream) ProcessObjects(htype uint64, subid uint64, reader quicvarint.Reader) {
 
-	os.streamsmap.DeleteStream(os.streamid)
+	var stream wire.MOQTStream
+	var err error
 
-	for _, sub := range os.subscribers {
-		sub.SubscribedStreams.DeleteStream(os.streamid)
-	}
-}
-
-func (os *RelayObjectStream) AddSubscriber(subid uint64, session *MOQTSession) {
-	os.subscriberlock.Lock()
-	defer os.subscriberlock.Unlock()
-
-	os.subscribers[session.Id] = session.Handler.(*RelayHandler)
-
-	session.Slogger.Info().Msgf("[Subscribed to Stream - %s][Len - %d]", os.streamid, len(os.subscribers))
-}
-
-func (os *RelayObjectStream) RemoveSubscriber(sessionid string) {
-	os.subscriberlock.Lock()
-	defer os.subscriberlock.Unlock()
-
-	log.Debug().Msgf("[Session Unsubscribed from - %s][%s]", os.streamid, sessionid)
-
-	delete(os.subscribers, sessionid)
-}
-
-func (os *RelayObjectStream) ProcessObjects(stream quic.ReceiveStream, header wire.MOQTObjectHeader) {
-	reader := quicvarint.NewReader(stream)
-
-	for _, sub := range os.subscribers {
-		_, err := sub.CreateObjectSream(header, os.streamid)
-
-		if err != nil {
-			log.Error().Msgf("Unable to create Obejct Stream %s", err)
+	switch htype {
+	case wire.STREAM_HEADER_GROUP:
+		if stream, err = wire.NewGroupStream(subid, rs.StreamID, reader); err != nil {
+			return
 		}
+	case wire.STREAM_HEADER_TRACK:
+		if stream, err = wire.NewTrackStream(subid, rs.StreamID, reader); err != nil {
+			return
+		}
+	default:
+		log.Debug().Msgf("Unknown Header")
+		return
 	}
+
+	rs.ForwardStream(stream)
 
 	for {
-		object := wire.NewTrackObject(os.streamid, header)
-		err := object.Parse(reader)
-		os.NotifySubscribers(object)
+		_, object, err := stream.ReadObject()
 
-		if err != nil {
+		if err == io.EOF {
 			break
 		}
-	}
 
-	for _, sub := range os.subscribers {
-		sub.DeleteObjectStream(header)
-	}
+		if err != nil {
+			log.Debug().Msgf("[Error Reading Object][%s]", err)
+			return
+		}
 
-}
-
-func (os *RelayObjectStream) NotifySubscribers(object *wire.TrackObject) {
-	os.subscriberlock.RLock()
-	defer os.subscriberlock.RUnlock()
-
-	for _, sub := range os.subscribers {
-		sub.DispatchObject(object)
+		rs.ObjectCache = append(rs.ObjectCache, *object)
 	}
 }
