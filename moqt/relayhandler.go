@@ -5,7 +5,6 @@ import (
 	"math/rand/v2"
 	"moq-go/moqt/wire"
 	"strings"
-	"sync"
 
 	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog/log"
@@ -17,7 +16,7 @@ type RelayHandler struct {
 	SubscribedStreams StreamsMap[*RelayStream]
 }
 
-func CreateNewRelayHandler(session *MOQTSession) *RelayHandler {
+func NewRelayHandler(session *MOQTSession) *RelayHandler {
 
 	handler := &RelayHandler{
 		MOQTSession: session,
@@ -63,43 +62,42 @@ func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayStream {
 func (publisher *RelayHandler) GetObjectStream(msg *wire.Subscribe) *RelayStream {
 
 	streamid := msg.GetStreamID()
-	stream := publisher.IncomingStreams.StreamIDGetStream(streamid)
+	stream, ok := publisher.IncomingStreams.StreamIDGetStream(streamid)
 
 	var rs *RelayStream
 
 	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm its a nasty implementation. Requires more work.
-	if stream == nil || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
+	if !ok || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
 		rs = publisher.SendSubscribe(*msg)
 	} else {
-		rs = stream.(*RelayStream)
+		rs = stream
 	}
 
 	return rs
 }
 
-func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream, wg *sync.WaitGroup) {
+func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream) {
 
 	streamid := stream.GetStreamID()
-	rs := sub.SubscribedStreams.StreamIDGetStream(streamid)
 
-	if rs == nil {
-		log.Error().Msgf("[Cannot find SubID for Stream - %s]", streamid)
-		wg.Done()
+	subid, err := sub.SubscribedStreams.GetSubID(streamid)
+
+	if err != nil {
+		sub.Slogger.Error().Msgf("[Unable to find SubscribedStreams for StreamID - %s]", streamid)
+		stream.WgDone()
 		return
 	}
-
-	subid := rs.GetSubID()
 
 	unistream, err := sub.Conn.OpenUniStream()
 
 	if err != nil {
 		sub.Slogger.Error().Msgf("[Cannot Open Unistream - %s]", err)
-		wg.Done()
+		stream.WgDone()
 		return
 	}
 
 	unistream.Write(stream.GetHeaderSubIDBytes(subid))
-	wg.Done()
+	stream.WgDone()
 
 	itr := 0
 
@@ -119,7 +117,8 @@ func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream, wg *sync.Wait
 	unistream.Close()
 }
 
-func (publisher *RelayHandler) ProcessObjectStreams() {
+// RelayHandler simply processes the incoming streams from the remote client
+func (publisher *RelayHandler) DoHandle() {
 
 	for {
 		unistream, err := publisher.Conn.AcceptUniStream(publisher.ctx)
@@ -131,28 +130,16 @@ func (publisher *RelayHandler) ProcessObjectStreams() {
 
 		reader := quicvarint.NewReader(unistream)
 
-		htype, err := quicvarint.Read(reader)
+		subid, stream, err := wire.ParseMOQTStream(reader)
 
 		if err != nil {
-			publisher.Slogger.Error().Msgf("[Unable to read header type][%s]", err)
-			return
-		}
-
-		switch htype {
-		case wire.STREAM_HEADER_GROUP, wire.STREAM_HEADER_TRACK:
-			break
-		default:
+			publisher.Slogger.Error().Msgf("[Error Parsing MOQT Stream][%s]", err)
 			continue
 		}
 
-		subid, err := quicvarint.Read(reader)
-
-		if err != nil {
-			return
-		}
-
-		if rs := publisher.IncomingStreams.SubIDGetStream(subid); rs != nil {
-			go rs.ProcessObjects(htype, subid, reader)
+		if rs, ok := publisher.IncomingStreams.SubIDGetStream(subid); ok {
+			stream.SetStreamID(rs.StreamID) // Very Important. We need to set the streamid for StreamsMap Lookup
+			go rs.ProcessObjects(stream, reader)
 		} else {
 			log.Error().Msgf("[Stream not found for SubID - %X]", subid)
 		}
@@ -178,7 +165,7 @@ func (publisher *RelayHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
 
 	subid := msg.SubscribeID
 
-	if rs := publisher.IncomingStreams.SubIDGetStream(subid); rs != nil {
+	if rs, ok := publisher.IncomingStreams.SubIDGetStream(subid); ok {
 		rs.ForwardSubscribeOk(*msg)
 	}
 }
@@ -221,7 +208,7 @@ func (subscriber *RelayHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
 
 	subid := msg.SubscriptionID
 
-	if rs := subscriber.SubscribedStreams.SubIDGetStream(subid); rs != nil {
+	if rs, ok := subscriber.SubscribedStreams.SubIDGetStream(subid); ok {
 		rs.RemoveSubscriber(subscriber.Id)
 	}
 }

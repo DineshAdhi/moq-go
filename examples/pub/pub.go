@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"moq-go/moqt"
 	"moq-go/moqt/api"
+	"moq-go/moqt/wire"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -48,41 +48,52 @@ func main() {
 		},
 	}
 
-	pub := api.NewMOQTPublisher(Options, "bbb", RELAY)
-	pub.Run()
+	pub := api.NewMOQPub(Options, RELAY)
+	handler, err := pub.Connect()
 
-	for {
-		stream := <-pub.SubscriptionChan
-		go handleStream(stream)
+	if err != nil {
+		log.Error().Msgf("error - %s", err)
+		return
+	}
+
+	handler.SendAnnounce("bbb")
+
+	for pubstream := range handler.StreamsChan {
+		go handleStream(&pubstream)
 	}
 }
 
 func handleStream(stream *moqt.PubStream) {
+	stream.Accept()
 
-	handler := stream.Handler.(*moqt.PubHandler)
-	handler.SubscribeOk(stream)
-
-	log.Debug().Msgf("Handing Stream  : %s", stream.StreamId)
-
-	var itr uint64 = 0
+	groupid := 0
 
 	for {
-		str := fmt.Sprintf("Dinesh %d", itr)
-		data := []byte(str)
-		stream.Push(itr, data)
-		itr++
+		gs, err := stream.NewTrack()
 
-		<-time.After(time.Second)
+		if err != nil {
+			log.Error().Msgf("Err - %s", err)
+			return
+		}
+
+		objectid := 0
+
+		for range 5 {
+
+			obj := &wire.Object{
+				GroupID: uint64(groupid),
+				ID:      uint64(objectid),
+				Payload: []byte("Dinesh"),
+			}
+
+			gs.WriteObject(obj)
+			objectid++
+		}
+
+		gs.Close()
+
+		groupid++
+
+		<-time.After(time.Millisecond * 250)
 	}
-
-	// data := [6]byte{}
-
-	// for {
-	// 	n, err := os.Stdin.Read(data[:])
-	// 	if err != nil {
-	// 		stream.Push(itr, data[:n])
-	// 		log.Debug().Msgf("Pusing : %s", string(data[:n]))
-	// 		itr++
-	// 	}
-	// }
 }

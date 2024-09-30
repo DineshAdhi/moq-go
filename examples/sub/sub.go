@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"io"
 	"moq-go/moqt"
 	"moq-go/moqt/api"
+	"moq-go/moqt/wire"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -44,24 +46,49 @@ func main() {
 		},
 	}
 
-	sub := api.NewMOQTSubscriber(Options, "bbb", RELAY)
-	sub.Run()
+	sub := api.NewMOQSub(Options, RELAY)
+	handler, err := sub.Connect()
 
-	sub.Subscribe("2.m4s", 0)
+	handler.Subscribe("bbb", "dumeel", 0)
 
-	go func() {
-		for {
-			ss := <-sub.SubscriptionChan
-			go handleStream(ss)
-		}
-	}()
+	for substream := range handler.SubscribedChan {
+		go handleStream(&substream)
+	}
+
+	if err != nil {
+		log.Error().Msgf("Error - %s", err)
+		return
+	}
 }
 
 func handleStream(ss *moqt.SubStream) {
-	for {
-		toject := <-ss.ObjectChan
-		data := string(toject.Payload[:])
 
-		log.Debug().Msgf("Sub Data : %s", data)
+	log.Debug().Msgf("New Stream Header")
+
+	for moqtstream := range ss.StreamsChan {
+		log.Debug().Msgf("New Group Stream - %s", moqtstream.GetStreamID())
+		go handleMOQStream(moqtstream)
 	}
+}
+
+func handleMOQStream(stream wire.MOQTStream) {
+
+	for {
+		groupid, object, err := stream.ReadObject()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			log.Error().Msgf("Error Reading Objects - %s", err)
+			break
+		}
+
+		msg := string(object.Payload[:])
+		log.Printf("Payload - %d %s - %d", groupid, msg, object.ID)
+	}
+
+	log.Printf("Group Ended")
+
 }

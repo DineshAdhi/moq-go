@@ -17,9 +17,6 @@ import (
 type WTSession struct {
 	quic.Stream
 	quicConn       quic.Connection
-	serverStream   quic.SendStream
-	clientStream   quic.ReceiveStream
-	requestStream  quic.Stream
 	ResponseWriter *h3.ResponseWriter
 	context        context.Context
 	uniStreamsChan chan quic.ReceiveStream
@@ -121,9 +118,6 @@ func UpgradeWTS(quicConn quic.Connection) (*WTSession, *http.Request, error) {
 
 	wts := &WTSession{
 		quicConn:       quicConn,
-		clientStream:   clientstream,
-		serverStream:   serverstream,
-		requestStream:  rrStream,
 		ResponseWriter: responseWriter,
 		context:        context.TODO(),
 		uniStreamsChan: make(chan quic.ReceiveStream, 1024),

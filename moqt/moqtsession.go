@@ -89,7 +89,7 @@ func (s *MOQTSession) ServeMOQ() {
 		go s.InitiateHandshake()
 	}
 
-	go s.Handler.ProcessObjectStreams() // ObjectStream Processing happens on the respective handlers (relay / pub / sub).
+	go s.Handler.DoHandle() // ObjectStream Processing happens on the respective handlers (relay / pub / sub).
 }
 
 func (s *MOQTSession) SendSubscribe(submsg *wire.Subscribe) {
@@ -149,4 +149,12 @@ func (s *MOQTSession) SetRemoteRole(role uint64) error {
 
 func (s *MOQTSession) RelayHandler() *RelayHandler {
 	return s.Handler.(*RelayHandler)
+}
+
+func (s *MOQTSession) PubHandler() *PubHandler {
+	return s.Handler.(*PubHandler)
+}
+
+func (s *MOQTSession) SubHandler() *SubHandler {
+	return s.Handler.(*SubHandler)
 }

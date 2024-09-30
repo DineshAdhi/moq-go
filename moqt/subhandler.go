@@ -1,104 +1,102 @@
 package moqt
 
-// import (
-// 	"fmt"
-// 	"math/rand/v2"
-// 	"moq-go/moqt/wire"
+import (
+	"math/rand"
+	"moq-go/moqt/wire"
 
-// 	"github.com/quic-go/quic-go/quicvarint"
-// )
+	"github.com/quic-go/quic-go/quicvarint"
+	"github.com/rs/zerolog/log"
+)
 
-// type SubHandler struct {
-// 	session           *MOQTSession
-// 	SubscribedStreams *StreamsMap
-// 	StreamsChan       chan *SubStream
-// }
+type SubHandler struct {
+	*MOQTSession
+	SubscribedStreams StreamsMap[*SubStream]
+	SubscribedChan    chan SubStream
+}
 
-// func CreateNewSubHandler(session *MOQTSession) *SubHandler {
-// 	handler := SubHandler{
-// 		session:           session,
-// 		SubscribedStreams: NewStreamsMap(session),
-// 		StreamsChan:       make(chan *SubStream),
-// 	}
+func NewSubHandler(session *MOQTSession) *SubHandler {
+	return &SubHandler{
+		MOQTSession:       session,
+		SubscribedStreams: NewStreamsMap[*SubStream](session),
+		SubscribedChan:    make(chan SubStream),
+	}
+}
 
-// 	return &handler
-// }
+func (sub *SubHandler) Subscribe(ns string, name string, alias uint64) {
 
-// func (sub *SubHandler) Subscribe(ns string, TrackName string, alias uint64) {
+	subid := uint64(rand.Uint32())
 
-// 	subid := uint64(rand.Uint32())
-// 	streamid := fmt.Sprintf("%s_%s_%d", ns, TrackName, alias)
+	msg := wire.Subscribe{
+		SubscribeID:    subid,
+		TrackAlias:     alias,
+		TrackName:      name,
+		TrackNameSpace: ns,
+		FilterType:     wire.LatestGroup,
+	}
 
-// 	msg := wire.Subscribe{
-// 		SubscribeID:    subid,
-// 		TrackName:      TrackName,
-// 		TrackNameSpace: ns,
-// 		TrackAlias:     0,
-// 		FilterType:     wire.LatestGroup,
-// 	}
+	sub.CS.WriteControlMessage(&msg)
 
-// 	ss := NewSubStream(sub.session, ns, TrackName, streamid, subid, alias)
-// 	sub.SubscribedStreams.AddStream(subid, ss)
+	substream := NewSubStream(msg.GetStreamID(), subid)
+	sub.SubscribedStreams.AddStream(subid, substream)
+}
 
-// 	sub.session.CS.WriteControlMessage(&msg)
-// }
+func (sub *SubHandler) HandleAnnounce(msg *wire.Announce) {
 
-// func (pub *SubHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
-// 	pub.session.Slogger.Info().Msgf(msg.String())
+}
 
-// 	stream := pub.SubscribedStreams.SubIDGetStream(msg.SubscribeID)
+func (sub *SubHandler) HandleSubscribe(msg *wire.Subscribe) {
+}
 
-// 	if stream != nil {
-// 		pub.StreamsChan <- stream.(*SubStream)
-// 	}
-// }
+func (sub *SubHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
+	sub.Slogger.Info().Msg(msg.String())
 
-// func (pub *SubHandler) HandleAnnounce(msg *wire.Announce) {
+	ss, ok := sub.SubscribedStreams.SubIDGetStream(msg.SubscribeID)
 
-// }
+	if ok {
+		sub.SubscribedChan <- *ss
+	} else {
+		log.Error().Msgf("[Cannot find Substream with SubID - %X]", msg.SubscribeID)
+	}
+}
 
-// func (pub *SubHandler) HandleSubscribe(msg *wire.Subscribe) {
-// 	pub.session.Close(wire.MOQERR_PROTOCOL_VIOLATION, "Protocol Violation. I am a Sub, dont send Subscribe to me.")
-// }
+func (sub *SubHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
 
-// func (pub *SubHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
-// 	pub.session.Close(wire.MOQERR_PROTOCOL_VIOLATION, "Protocol Violation. I am a Sub, received announce_ok")
-// }
+}
 
-// func (pub *SubHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
+func (sub *SubHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
 
-// }
+}
 
-// func (pub *SubHandler) HandleSubscribeDone(msg *wire.SubscribeDone) {
+func (sub *SubHandler) HandleSubscribeDone(msg *wire.SubscribeDone) {
 
-// }
+}
 
-// ObjectStreams() {
+func (sub *SubHandler) DoHandle() {
 
-// 	s := pub.session
+	for {
+		unistream, err := sub.Conn.AcceptUniStream(sub.ctx)
 
-// 	for {
-// 		unistream, err := s.Conn.AcceptUniStream(s.ctx)
+		if err != nil {
+			sub.Slogger.Error().Msgf("[Error Accepting Unistream][%s]", err)
+			return
+		}
 
-// 		if err != nil {
-// 			return
-// 		}
+		reader := quicvarint.NewReader(unistream)
+		subid, stream, err := wire.ParseMOQTStream(reader)
 
-// 		reader := quicvarint.NewReader(unistream)
-// 		header, err := wire.ParseMOQTObjectHeader(reader)
+		if err != nil {
+			sub.Slogger.Error().Msgf("[Error Parsing MOQT Stream][%s]", err)
+			continue
+		}
 
-// 		if err != nil {
-// 			return
-// 		}
+		if ss, ok := sub.SubscribedStreams.SubIDGetStream(subid); ok {
+			go ss.ProcessObjects(stream, reader)
+		} else {
+			sub.Slogger.Error().Msgf("Received Header with unknown subid - %X", subid)
+		}
+	}
+}
 
-// 		object := wire.ObjectStreamObject{}
-// 		object.Parse(reader)
-
-// 		subid := header.GetSubID()
-// 		stream := pub.SubscribedStreams.SubIDGetStream(subid)
-
-// 		ss := (stream).(*SubStream)
-
-// 		ss.ObjectChan <- object
-// 	}
-// }
+func (sub *SubHandler) HandleClose() {
+	close(sub.SubscribedChan)
+}

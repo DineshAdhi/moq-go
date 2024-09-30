@@ -1,102 +1,82 @@
 package moqt
 
-// import (
-// 	"moq-go/moqt/wire"
-// 	"sync"
-// )
+import (
+	"moq-go/moqt/wire"
+	"sync"
 
-// type PubHandler struct {
-// 	session          *MOQTSession
-// 	AnnounceList     map[string]*StreamsMap
-// 	lock             sync.RWMutex
-// 	SubscribeChannel chan *PubStream
-// }
+	"github.com/quic-go/quic-go"
+)
 
-// func CreateNewPubHandler(session *MOQTSession) *PubHandler {
-// 	handler := PubHandler{
-// 		session:          session,
-// 		AnnounceList:     map[string]*StreamsMap{},
-// 		lock:             sync.RWMutex{},
-// 		SubscribeChannel: make(chan *PubStream, 10),
-// 	}
+type PubHandler struct {
+	*MOQTSession
+	AnnouncedStreams map[string]*StreamsMap[*PubStream]
+	NamespaceLock    sync.RWMutex
+	StreamsChan      chan PubStream
+}
 
-// 	return &handler
-// }
+func NewPubHandler(session *MOQTSession) *PubHandler {
+	return &PubHandler{
+		MOQTSession:      session,
+		AnnouncedStreams: map[string]*StreamsMap[*PubStream]{},
+		NamespaceLock:    sync.RWMutex{},
+		StreamsChan:      make(chan PubStream),
+	}
+}
 
-// func (pub *PubHandler) Announce(ns string) {
-// 	pub.lock.Lock()
-// 	defer pub.lock.Unlock()
+func (pub *PubHandler) SendAnnounce(namespace string) {
+	announce := wire.Announce{
+		TrackNameSpace: namespace,
+	}
 
-// 	pub.session.CS.WriteControlMessage(&wire.Announce{
-// 		TrackNameSpace: ns,
-// 	})
+	pub.CS.WriteControlMessage(&announce)
 
-// 	pub.AnnounceList[ns] = NewStreamsMap(pub.session)
-// }
+	pub.NamespaceLock.Lock()
+	defer pub.NamespaceLock.Unlock()
 
-// func (pub *PubHandler) SubscribeOk(ps *PubStream) {
+	smap := NewStreamsMap[*PubStream](pub.MOQTSession)
+	pub.AnnouncedStreams[namespace] = &smap
+}
 
-// 	okmsg := &wire.SubscribeOk{
-// 		SubscribeID:   ps.SubId,
-// 		Expires:       1024,
-// 		ContentExists: 0,
-// 	}
+func (pub *PubHandler) HandleAnnounce(msg *wire.Announce) {
+	pub.Conn.CloseWithError(quic.ApplicationErrorCode(wire.MOQERR_PROTOCOL_VIOLATION), "I am pub. Dont send Announce to me")
+}
 
-// 	pub.session.CS.WriteControlMessage(okmsg)
+func (pub *PubHandler) HandleSubscribe(msg *wire.Subscribe) {
+	ns := msg.TrackNameSpace
 
-// 	pub.lock.Lock()
-// 	defer pub.lock.Unlock()
+	if smap, ok := pub.AnnouncedStreams[ns]; ok {
 
-// 	sm := pub.AnnounceList[ps.Namespace]
+		pubstream := NewPubStream(pub.MOQTSession, msg.GetStreamID(), msg.SubscribeID, msg.TrackNameSpace, msg.TrackName, msg.TrackAlias)
+		smap.AddStream(msg.SubscribeID, pubstream)
 
-// 	if sm != nil {
-// 		sm.AddStream(ps.SubId, ps)
-// 		pub.session.Slogger.Info().Msgf("[Created New Stream][SubID - %x][StreamID - %s", ps.SubId, ps.StreamId)
-// 	} else {
-// 		pub.session.Slogger.Error().Msgf("[Error Adding Stream][Namespace not found][%s]", ps.Namespace)
-// 	}
-// }
+		pub.StreamsChan <- *pubstream
 
-// func (pub *PubHandler) HandleSubscribe(msg *wire.Subscribe) {
-// 	pub.session.Slogger.Info().Msgf(msg.String())
+	} else {
+		pub.Slogger.Error().Msgf("[Received Subscribe for Unknown Namespace]")
+	}
+}
 
-// 	ns := msg.TrackNameSpace
-// 	streamid := msg.GetStreamID()
-// 	subId := msg.SubscribeID
-// 	alias := msg.TrackAlias
-// 	name := msg.TrackName
+func (pub *PubHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
 
-// 	pub.lock.RLock()
-// 	defer pub.lock.RUnlock()
+}
 
-// 	if _, ok := pub.AnnounceList[ns]; ok {
-// 		ps := NewPubStream(pub.session, ns, name, streamid, subId, alias)
-// 		pub.SubscribeChannel <- ps
-// 	} else {
-// 		pub.session.Slogger.Error().Msgf("[Received Invalid Subscription][No such Namespace][%s]", ns)
-// 	}
-// }
+func (pub *PubHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
+	pub.Slogger.Info().Msgf(msg.String())
+}
 
-// func (pub *PubHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
-// 	pub.session.Slogger.Info().Msgf(msg.String())
-// }
+func (pub *PubHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
 
-// func (pub *PubHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
+}
 
-// }
+func (pub *PubHandler) HandleSubscribeDone(msg *wire.SubscribeDone) {
 
-// func (pub *PubHandler) HandleSubscribeDone(msg *wire.SubscribeDone) {
+}
 
-// }
+// SubHandler -
+func (pub *PubHandler) DoHandle() {
 
-// func (pub *PubHandler) ProcessObjectStreams() {
+}
 
-// }
-
-// func (pub *PubHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
-// 	pub.session.Close(wire.MOQERR_PROTOCOL_VIOLATION, "Protocol Violation. I am a Pub, dont send SubOk to me.")
-// }
-
-// func (pub *PubHandler) HandleAnnounce(msg *wire.Announce) {
-// 	pub.session.Close(wire.MOQERR_PROTOCOL_VIOLATION, "Protocol Violation. I am a Pub, dont send Announce to me.")
-// }
+func (pub *PubHandler) HandleClose() {
+	close(pub.StreamsChan)
+}

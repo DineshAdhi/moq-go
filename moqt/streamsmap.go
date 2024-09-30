@@ -2,19 +2,12 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/moqt/wire"
 	"sync"
-
-	"github.com/quic-go/quic-go/quicvarint"
 )
 
 type ObjectStream interface {
 	GetStreamID() string
 	GetSubID() uint64
-	AddSubscriber(handler *RelayHandler)
-	ForwardSubscribeOk(wire.SubscribeOk)
-	RemoveSubscriber(string)
-	ProcessObjects(uint64, uint64, quicvarint.Reader)
 }
 
 // A simple Map util to keep ObjectStream of the ObjectStream respecitve to its streamid and subid
@@ -45,28 +38,30 @@ func (s *StreamsMap[T]) GetSubID(streamid string) (uint64, error) {
 	return 0, fmt.Errorf("[SubID not found]")
 }
 
-func (s *StreamsMap[T]) StreamIDGetStream(streamid string) ObjectStream {
+func (s *StreamsMap[T]) StreamIDGetStream(streamid string) (T, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	for _, stream := range s.streams {
 		if stream.GetStreamID() == streamid {
-			return stream
+			return stream, true
 		}
 	}
 
-	return nil
+	var zero T
+	return zero, false
 }
 
-func (s *StreamsMap[T]) SubIDGetStream(subid uint64) ObjectStream {
+func (s *StreamsMap[T]) SubIDGetStream(subid uint64) (T, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	if stream, ok := s.streams[subid]; ok {
-		return stream
+		return stream, true
 	}
 
-	return nil
+	var zero T
+	return zero, false
 }
 
 func (s *StreamsMap[T]) AddStream(subid uint64, os T) {
@@ -78,7 +73,7 @@ func (s *StreamsMap[T]) AddStream(subid uint64, os T) {
 
 func (s *StreamsMap[T]) DeleteStream(streamid string) {
 
-	if stream := s.StreamIDGetStream(streamid); stream != nil {
+	if stream, ok := s.StreamIDGetStream(streamid); ok {
 		subid := stream.GetSubID()
 
 		s.lock.Lock()

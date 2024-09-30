@@ -34,6 +34,7 @@ func NewRelayStream(subid uint64, id string, smap *StreamsMap[*RelayStream]) *Re
 	rs.Map = smap
 	rs.Subscribers = map[string]*RelayHandler{}
 	rs.SubscribersLock = sync.RWMutex{}
+	rs.ObjectCache = make([]wire.Object, 0)
 
 	return rs
 }
@@ -65,34 +66,15 @@ func (rs *RelayStream) ForwardStream(stream wire.MOQTStream) {
 	rs.SubscribersLock.RLock()
 	defer rs.SubscribersLock.RUnlock()
 
-	wg := &sync.WaitGroup{}
-
 	for _, sub := range rs.Subscribers {
-		wg.Add(1)
-		go sub.ProcessMOQTStream(stream, wg)
+		stream.WgAdd()
+		go sub.ProcessMOQTStream(stream)
 	}
 
-	wg.Wait()
+	stream.WgWait()
 }
 
-func (rs *RelayStream) ProcessObjects(htype uint64, subid uint64, reader quicvarint.Reader) {
-
-	var stream wire.MOQTStream
-	var err error
-
-	switch htype {
-	case wire.STREAM_HEADER_GROUP:
-		if stream, err = wire.NewGroupStream(subid, rs.StreamID, reader); err != nil {
-			return
-		}
-	case wire.STREAM_HEADER_TRACK:
-		if stream, err = wire.NewTrackStream(subid, rs.StreamID, reader); err != nil {
-			return
-		}
-	default:
-		log.Debug().Msgf("Unknown Header")
-		return
-	}
+func (rs *RelayStream) ProcessObjects(stream wire.MOQTStream, reader quicvarint.Reader) {
 
 	rs.ForwardStream(stream)
 

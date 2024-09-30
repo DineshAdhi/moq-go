@@ -12,7 +12,7 @@ type Handler interface {
 	HandleAnnounceOk(msg *wire.AnnounceOk)
 	HandleUnsubscribe(msg *wire.Unsubcribe)
 	HandleSubscribeDone(msg *wire.SubscribeDone)
-	ProcessObjectStreams()
+	DoHandle()
 	HandleClose()
 }
 
@@ -20,11 +20,11 @@ func CreateNewHandler(role uint64, session *MOQTSession) (Handler, error) {
 
 	switch role {
 	case wire.ROLE_RELAY:
-		return CreateNewRelayHandler(session), nil
-	// case wire.ROLE_PUBLISHER:
-	// 	return CreateNewPubHandler(session), nil
-	// case wire.ROLE_SUBSCRIBER:
-	// 	return CreateNewSubHandler(session), nil
+		return NewRelayHandler(session), nil
+	case wire.ROLE_PUBLISHER:
+		return NewPubHandler(session), nil
+	case wire.ROLE_SUBSCRIBER:
+		return NewSubHandler(session), nil
 	default:
 		return nil, fmt.Errorf("[Local Role not Supported][%X]", role)
 	}

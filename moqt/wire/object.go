@@ -7,6 +7,7 @@ import (
 )
 
 type Object struct {
+	GroupID uint64 // optional
 	ID      uint64
 	Payload []byte
 }
