@@ -6,22 +6,24 @@ import (
 )
 
 type PubStream struct {
-	*MOQTSession
-	StreamID  string
-	SubID     uint64
-	Namespace string
-	TrackName string
-	Alias     uint64
+	session      *MOQTSession
+	StreamID     string
+	SubID        uint64
+	Namespace    string
+	TrackName    string
+	Alias        uint64
+	GroupCounter uint64
 }
 
 func NewPubStream(session *MOQTSession, streamid string, subid uint64, ns string, trackname string, alias uint64) *PubStream {
 	return &PubStream{
-		MOQTSession: session,
-		StreamID:    streamid,
-		SubID:       subid,
-		Namespace:   ns,
-		TrackName:   trackname,
-		Alias:       alias,
+		session:      session,
+		StreamID:     streamid,
+		SubID:        subid,
+		Namespace:    ns,
+		TrackName:    trackname,
+		Alias:        alias,
+		GroupCounter: 0,
 	}
 }
 
@@ -32,7 +34,7 @@ func (pub *PubStream) Accept() {
 		ContentExists: 0,
 	}
 
-	pub.CS.WriteControlMessage(&okmsg)
+	pub.session.CS.WriteControlMessage(&okmsg)
 }
 
 func (pub *PubStream) NewGroup(id uint64) (wire.MOQTStream, error) {
@@ -49,7 +51,7 @@ func (pub *PubStream) NewStream(stream wire.MOQTStream) (wire.MOQTStream, error)
 
 	stream.WgAdd()
 
-	unistream, err := pub.Conn.OpenUniStream()
+	unistream, err := pub.session.Conn.OpenUniStream()
 
 	if err != nil {
 		return stream, err
@@ -70,7 +72,7 @@ func (pub *PubStream) NewStream(stream wire.MOQTStream) (wire.MOQTStream, error)
 			}
 
 			if err != nil {
-				pub.Slogger.Error().Msgf("[Error Piping Objects][%s]", err)
+				pub.session.Slogger.Error().Msgf("[Error Piping Objects][%s]", err)
 			}
 		}
 

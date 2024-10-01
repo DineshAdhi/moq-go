@@ -51,6 +51,11 @@ func main() {
 	pub := api.NewMOQPub(Options, RELAY)
 	handler, err := pub.Connect()
 
+	pub.OnSubscribe(func(ps moqt.PubStream) {
+		log.Debug().Msgf("New Subscribe Request - %s", ps.TrackName)
+		go handleStream(&ps)
+	})
+
 	if err != nil {
 		log.Error().Msgf("error - %s", err)
 		return
@@ -58,35 +63,30 @@ func main() {
 
 	handler.SendAnnounce("bbb")
 
-	for pubstream := range handler.StreamsChan {
-		go handleStream(&pubstream)
-	}
+	<-pub.Ctx.Done()
 }
 
 func handleStream(stream *moqt.PubStream) {
 	stream.Accept()
 
-	groupid := 0
+	groupid := uint64(0)
 
 	for {
-		gs, err := stream.NewTrack()
+		gs, err := stream.NewGroup(groupid)
 
 		if err != nil {
 			log.Error().Msgf("Err - %s", err)
 			return
 		}
 
-		objectid := 0
+		objectid := uint64(0)
 
-		for range 5 {
-
-			obj := &wire.Object{
-				GroupID: uint64(groupid),
-				ID:      uint64(objectid),
+		for range 10 {
+			gs.WriteObject(&wire.Object{
+				GroupID: groupid,
+				ID:      objectid,
 				Payload: []byte("Dinesh"),
-			}
-
-			gs.WriteObject(obj)
+			})
 			objectid++
 		}
 
@@ -94,6 +94,6 @@ func handleStream(stream *moqt.PubStream) {
 
 		groupid++
 
-		<-time.After(time.Millisecond * 250)
+		<-time.After(time.Millisecond * 50)
 	}
 }

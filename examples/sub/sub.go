@@ -47,18 +47,25 @@ func main() {
 	}
 
 	sub := api.NewMOQSub(Options, RELAY)
+
 	handler, err := sub.Connect()
 
-	handler.Subscribe("bbb", "dumeel", 0)
+	sub.OnStream(func(ss moqt.SubStream) {
+		go handleStream(&ss)
+	})
 
-	for substream := range handler.SubscribedChan {
-		go handleStream(&substream)
-	}
+	sub.OnAnnounce(func(ns string) {
+		handler.Subscribe(ns, "dumeel", 0)
+	})
 
 	if err != nil {
 		log.Error().Msgf("Error - %s", err)
 		return
 	}
+
+	handler.Subscribe("bbb", "dumeel", 0)
+
+	<-sub.Ctx.Done()
 }
 
 func handleStream(ss *moqt.SubStream) {

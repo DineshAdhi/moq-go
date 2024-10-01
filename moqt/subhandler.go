@@ -11,14 +11,16 @@ import (
 type SubHandler struct {
 	*MOQTSession
 	SubscribedStreams StreamsMap[*SubStream]
-	SubscribedChan    chan SubStream
+	StreamsChan       chan SubStream
+	AnnounceChan      chan string
 }
 
 func NewSubHandler(session *MOQTSession) *SubHandler {
 	return &SubHandler{
 		MOQTSession:       session,
 		SubscribedStreams: NewStreamsMap[*SubStream](session),
-		SubscribedChan:    make(chan SubStream),
+		StreamsChan:       make(chan SubStream),
+		AnnounceChan:      make(chan string),
 	}
 }
 
@@ -41,7 +43,8 @@ func (sub *SubHandler) Subscribe(ns string, name string, alias uint64) {
 }
 
 func (sub *SubHandler) HandleAnnounce(msg *wire.Announce) {
-
+	log.Debug().Msg(msg.String())
+	sub.AnnounceChan <- msg.TrackNameSpace
 }
 
 func (sub *SubHandler) HandleSubscribe(msg *wire.Subscribe) {
@@ -53,7 +56,7 @@ func (sub *SubHandler) HandleSubscribeOk(msg *wire.SubscribeOk) {
 	ss, ok := sub.SubscribedStreams.SubIDGetStream(msg.SubscribeID)
 
 	if ok {
-		sub.SubscribedChan <- *ss
+		sub.StreamsChan <- *ss
 	} else {
 		log.Error().Msgf("[Cannot find Substream with SubID - %X]", msg.SubscribeID)
 	}
@@ -98,5 +101,5 @@ func (sub *SubHandler) DoHandle() {
 }
 
 func (sub *SubHandler) HandleClose() {
-	close(sub.SubscribedChan)
+	close(sub.StreamsChan)
 }

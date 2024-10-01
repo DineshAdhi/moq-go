@@ -7,9 +7,11 @@ import (
 )
 
 type MOQPub struct {
-	Options moqt.DialerOptions
-	Ctx     context.Context
-	Relay   string
+	Options            moqt.DialerOptions
+	Ctx                context.Context
+	Relay              string
+	handler            *moqt.PubHandler
+	onSubscribeHandler func(moqt.PubStream)
 }
 
 func NewMOQPub(options moqt.DialerOptions, relay string) *MOQPub {
@@ -18,7 +20,12 @@ func NewMOQPub(options moqt.DialerOptions, relay string) *MOQPub {
 		Ctx:     context.TODO(),
 		Relay:   relay,
 	}
+
 	return pub
+}
+
+func (pub *MOQPub) OnSubscribe(f func(moqt.PubStream)) {
+	pub.onSubscribeHandler = f
 }
 
 func (pub *MOQPub) Connect() (*moqt.PubHandler, error) {
@@ -34,6 +41,14 @@ func (pub *MOQPub) Connect() (*moqt.PubHandler, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	pub.handler = session.PubHandler()
+
+	go func() {
+		for stream := range pub.handler.SubscribeChan {
+			pub.onSubscribeHandler(stream)
+		}
+	}()
 
 	return session.PubHandler(), nil
 }

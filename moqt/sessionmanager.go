@@ -55,12 +55,12 @@ func (sm *SessionManager) addPublisher(ns string, pub *RelayHandler) {
 
 	for _, peer := range sm.sessions {
 
-		if peer.RemoteRole == wire.ROLE_RELAY && peer.Id != pub.Id {
+		if (peer.RemoteRole == wire.ROLE_RELAY || peer.RemoteRole == wire.ROLE_SUBSCRIBER) && peer.Id != pub.Id {
 			announce := wire.Announce{
 				TrackNameSpace: ns,
 			}
 
-			peer.CS.WriteControlMessage(&announce)
+			go peer.CS.WriteControlMessage(&announce)
 		}
 	}
 

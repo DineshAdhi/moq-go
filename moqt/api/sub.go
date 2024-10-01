@@ -7,9 +7,12 @@ import (
 )
 
 type MOQSub struct {
-	Options moqt.DialerOptions
-	Relay   string
-	Ctx     context.Context
+	Options           moqt.DialerOptions
+	Relay             string
+	Ctx               context.Context
+	onStreamHandler   func(moqt.SubStream)
+	onAnnounceHandler func(string)
+	handler           *moqt.SubHandler
 }
 
 func NewMOQSub(options moqt.DialerOptions, relay string) *MOQSub {
@@ -20,6 +23,14 @@ func NewMOQSub(options moqt.DialerOptions, relay string) *MOQSub {
 	}
 
 	return sub
+}
+
+func (sub *MOQSub) OnStream(f func(moqt.SubStream)) {
+	sub.onStreamHandler = f
+}
+
+func (sub *MOQSub) OnAnnounce(f func(string)) {
+	sub.onAnnounceHandler = f
 }
 
 func (pub *MOQSub) Connect() (*moqt.SubHandler, error) {
@@ -35,6 +46,20 @@ func (pub *MOQSub) Connect() (*moqt.SubHandler, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	handler := session.SubHandler()
+
+	go func() {
+		for stream := range handler.StreamsChan {
+			pub.onStreamHandler(stream)
+		}
+	}()
+
+	go func() {
+		for ns := range handler.AnnounceChan {
+			pub.onAnnounceHandler(ns)
+		}
+	}()
 
 	return session.SubHandler(), nil
 }

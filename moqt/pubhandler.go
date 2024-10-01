@@ -11,7 +11,7 @@ type PubHandler struct {
 	*MOQTSession
 	AnnouncedStreams map[string]*StreamsMap[*PubStream]
 	NamespaceLock    sync.RWMutex
-	StreamsChan      chan PubStream
+	SubscribeChan    chan PubStream
 }
 
 func NewPubHandler(session *MOQTSession) *PubHandler {
@@ -19,7 +19,7 @@ func NewPubHandler(session *MOQTSession) *PubHandler {
 		MOQTSession:      session,
 		AnnouncedStreams: map[string]*StreamsMap[*PubStream]{},
 		NamespaceLock:    sync.RWMutex{},
-		StreamsChan:      make(chan PubStream),
+		SubscribeChan:    make(chan PubStream),
 	}
 }
 
@@ -49,7 +49,7 @@ func (pub *PubHandler) HandleSubscribe(msg *wire.Subscribe) {
 		pubstream := NewPubStream(pub.MOQTSession, msg.GetStreamID(), msg.SubscribeID, msg.TrackNameSpace, msg.TrackName, msg.TrackAlias)
 		smap.AddStream(msg.SubscribeID, pubstream)
 
-		pub.StreamsChan <- *pubstream
+		pub.SubscribeChan <- *pubstream
 
 	} else {
 		pub.Slogger.Error().Msgf("[Received Subscribe for Unknown Namespace]")
@@ -65,7 +65,7 @@ func (pub *PubHandler) HandleAnnounceOk(msg *wire.AnnounceOk) {
 }
 
 func (pub *PubHandler) HandleUnsubscribe(msg *wire.Unsubcribe) {
-
+	pub.Slogger.Info().Msgf(msg.String())
 }
 
 func (pub *PubHandler) HandleSubscribeDone(msg *wire.SubscribeDone) {
@@ -78,5 +78,5 @@ func (pub *PubHandler) DoHandle() {
 }
 
 func (pub *PubHandler) HandleClose() {
-	close(pub.StreamsChan)
+	close(pub.SubscribeChan)
 }

@@ -58,22 +58,18 @@ func (publisher *RelayHandler) SendSubscribe(msg wire.Subscribe) *RelayStream {
 	return rs
 }
 
-// Fetches the Object Stream with the StreamID (OR) Forwards the Subscribe and returns the ObjectStream Placeholder
-func (publisher *RelayHandler) GetObjectStream(msg *wire.Subscribe) *RelayStream {
+// Fetches the Object Stream with the StreamID (OR) Forwards the Subscribe and returns the ObjectStream Placeholder.
+// Returns true if the objectstream is provided from cache
+func (publisher *RelayHandler) GetObjectStream(msg *wire.Subscribe) (bool, *RelayStream) {
 
-	streamid := msg.GetStreamID()
-	stream, ok := publisher.IncomingStreams.StreamIDGetStream(streamid)
-
-	var rs *RelayStream
+	stream, ok := publisher.IncomingStreams.StreamIDGetStream(msg.GetStreamID())
 
 	// We need to fetch the fresh copies of ".catalog", "audio.mp4", "video.mp4".I knowm its a nasty implementation. Requires more work.
 	if !ok || strings.Contains(msg.TrackName, ".catalog") || strings.Contains(msg.TrackName, ".mp4") {
-		rs = publisher.SendSubscribe(*msg)
-	} else {
-		rs = stream
+		return false, publisher.SendSubscribe(*msg)
 	}
 
-	return rs
+	return true, stream
 }
 
 func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream) {
@@ -91,7 +87,6 @@ func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream) {
 	unistream, err := sub.Conn.OpenUniStream()
 
 	if err != nil {
-		sub.Slogger.Error().Msgf("[Cannot Open Unistream - %s]", err)
 		stream.WgDone()
 		return
 	}
@@ -186,10 +181,22 @@ func (subscriber *RelayHandler) HandleSubscribe(msg *wire.Subscribe) {
 		return
 	}
 
-	rs := pub.GetObjectStream(msg)
+	isCached, rs := pub.GetObjectStream(msg)
 
 	if rs == nil {
 		log.Error().Msgf("[Object Stream not found][%s]", msg.GetStreamID())
+		return
+	}
+
+	// If cached, send subok
+	if isCached {
+		okmsg := &wire.SubscribeOk{
+			SubscribeID:   msg.SubscribeID,
+			Expires:       1024,
+			ContentExists: 0,
+		}
+
+		go subscriber.CS.WriteControlMessage(okmsg)
 	}
 
 	rs.AddSubscriber(subscriber)
