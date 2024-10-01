@@ -3,8 +3,9 @@ package moqt
 import (
 	"io"
 	"math/rand/v2"
-	"moq-go/moqt/wire"
 	"strings"
+
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 
 	"github.com/quic-go/quic-go/quicvarint"
 	"github.com/rs/zerolog/log"

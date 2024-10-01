@@ -3,7 +3,8 @@ package wt
 import (
 	"context"
 	"fmt"
-	"moq-go/h3"
+
+	"github.com/DineshAdhi/moq-go/h3"
 
 	"net"
 	"net/http"

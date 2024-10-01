@@ -2,8 +2,9 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/moqt/wire"
 	"net"
+
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/quicvarint"

@@ -5,10 +5,11 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"moq-go/moqt/wire"
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 
-	"moq-go/wt"
 	"net/http"
+
+	"github.com/DineshAdhi/moq-go/wt"
 
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"

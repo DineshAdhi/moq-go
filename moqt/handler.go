@@ -2,7 +2,8 @@ package moqt
 
 import (
 	"fmt"
-	"moq-go/moqt/wire"
+
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 )
 
 type Handler interface {

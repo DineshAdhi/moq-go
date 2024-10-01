@@ -1,9 +1,10 @@
 package moqt
 
 import (
-	"moq-go/moqt/wire"
 	"sync"
 	"time"
+
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/exp/rand"

@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	moqt "moq-go/moqt"
-	"moq-go/moqt/api"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	moqt "github.com/DineshAdhi/moq-go/moqt"
+
+	"github.com/DineshAdhi/moq-go/moqt/api"
 
 	"net/http"
 	_ "net/http/pprof"

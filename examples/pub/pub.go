@@ -2,15 +2,15 @@ package main
 
 import (
 	"flag"
-	"moq-go/moqt"
-	"moq-go/moqt/api"
-	"moq-go/moqt/wire"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/DineshAdhi/moq-go/moqt"
+	"github.com/DineshAdhi/moq-go/moqt/api"
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"

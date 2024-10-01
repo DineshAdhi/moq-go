@@ -2,8 +2,9 @@ package api
 
 import (
 	"context"
-	"moq-go/moqt"
-	"moq-go/moqt/wire"
+
+	"github.com/DineshAdhi/moq-go/moqt"
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 )
 
 type MOQPub struct {

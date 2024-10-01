@@ -1,8 +1,9 @@
 package moqt
 
 import (
-	"moq-go/moqt/wire"
 	"sync"
+
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 
 	"github.com/quic-go/quic-go"
 )
