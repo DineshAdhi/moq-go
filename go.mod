@@ -1,4 +1,4 @@
-module moq-go
+module github.com/DineshAdhi/moq-go
 
 go 1.22
 
