@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	moqt "github.com/DineshAdhi/moq-go/moqt"
+	"github.com/DineshAdhi/moq-go/moqt"
 
 	"github.com/DineshAdhi/moq-go/moqt/api"
 

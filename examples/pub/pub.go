@@ -85,7 +85,7 @@ func handleStream(stream *moqt.PubStream) {
 			gs.WriteObject(&wire.Object{
 				GroupID: groupid,
 				ID:      objectid,
-				Payload: []byte("Dinesh"),
+				Payload: []byte("Test"),
 			})
 			objectid++
 		}
