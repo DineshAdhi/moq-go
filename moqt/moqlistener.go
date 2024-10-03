@@ -3,12 +3,11 @@ package moqt
 import (
 	"context"
 	"crypto/tls"
-
-	"moq-go/moqt/wire"
-
-	"moq-go/wt"
+	"fmt"
 	"net/http"
 
+	"github.com/DineshAdhi/moq-go/moqt/wire"
+	"github.com/DineshAdhi/moq-go/wt"
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog/log"
 )
@@ -34,8 +33,10 @@ func (listener *MOQTListener) Listen() error {
 	tlsCerts, err := tls.LoadX509KeyPair(Options.CertPath, Options.KeyPath)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("[Certificates Failed to Load][Key - %s][Cert - %s]", Options.KeyPath, Options.CertPath)
 	}
+
+	log.Info().Msgf("[Loaded Certificates][Key - %s][Cert - %s]", Options.KeyPath, Options.CertPath)
 
 	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{tlsCerts},

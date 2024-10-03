@@ -1,11 +1,12 @@
-module moq-go
+module github.com/DineshAdhi/moq-go
 
-go 1.22.5
+go 1.22
 
 require (
 	github.com/quic-go/qpack v0.5.1
 	github.com/quic-go/quic-go v0.45.1
 	github.com/rs/zerolog v1.33.0
+	github.com/stealthrocket/net v0.2.1
 )
 
 require (

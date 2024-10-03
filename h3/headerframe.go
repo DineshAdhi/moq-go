@@ -3,6 +3,7 @@ package h3
 import (
 	"bytes"
 	"crypto/tls"
+	"io"
 
 	"net/http"
 	"net/url"
@@ -27,7 +28,7 @@ func (hframe *HeaderFrame) Parse(reader quicvarint.Reader) error {
 	}
 
 	data := make([]byte, length)
-	reader.Read(data)
+	io.ReadFull(reader, data)
 
 	decoder := qpack.NewDecoder(nil)
 	hfs, err := decoder.DecodeFull(data)

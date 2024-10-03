@@ -2,24 +2,23 @@ package api
 
 import (
 	"context"
-	"moq-go/moqt"
-	"moq-go/moqt/wire"
+
+	"github.com/DineshAdhi/moq-go/moqt"
+	"github.com/DineshAdhi/moq-go/moqt/wire"
 
 	"github.com/rs/zerolog/log"
 )
 
-type Relay struct {
+type MOQRelay struct {
 	Options moqt.ListenerOptions
-	Role    uint64
 	Peers   []string // StringArray containing PeerAddress
 	Ctx     context.Context
 }
 
-func NewMOQTRelay(options moqt.ListenerOptions, peers []string) *Relay {
+func NewMOQTRelay(options moqt.ListenerOptions, peers []string) *MOQRelay {
 
-	relay := &Relay{
+	relay := &MOQRelay{
 		Options: options,
-		Role:    wire.ROLE_RELAY,
 		Peers:   peers,
 		Ctx:     context.TODO(),
 	}
@@ -27,12 +26,12 @@ func NewMOQTRelay(options moqt.ListenerOptions, peers []string) *Relay {
 	return relay
 }
 
-func (relay *Relay) Run() error {
+func (relay *MOQRelay) Run() error {
 
 	listener := moqt.MOQTListener{
 		Options: relay.Options,
 		Ctx:     relay.Ctx,
-		Role:    relay.Role,
+		Role:    wire.ROLE_RELAY,
 	}
 
 	err := listener.Listen()

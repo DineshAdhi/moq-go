@@ -1,73 +1,48 @@
 package main
 
 import (
-	"context"
-	"flag"
-	moqt "moq-go/moqt"
-	"moq-go/moqt/api"
-	"moq-go/moqt/wire"
-	"os"
-	"path/filepath"
-	"strconv"
+	"sync"
+	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
-const LISTENADDR = "0.0.0.0:4443"
-
-const CERTPATH = "../certs/localhost.crt"
-const KEYPATH = "../certs/localhost.key"
-
-var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
-
 func main() {
+	mut := sync.Mutex{}
+	cond := sync.NewCond(&mut)
 
-	debug := flag.Bool("debug", false, "sets log level to debug")
-	flag.Parse()
+	var data []int
 
-	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
-		return filepath.Base(file) + ":" + strconv.Itoa(line)
+	for i := 0; i < 2; i++ {
+
+		go func(i int) {
+
+			itr := 0
+			for {
+				cond.L.Lock()
+				cond.Wait()
+				length := len(data)
+				cond.L.Unlock()
+
+				for itr < length {
+					log.Printf("Consumer %d - Data %d", i, data[itr])
+					itr++
+				}
+			}
+		}(i)
 	}
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	itr := 0
 
-	if *debug {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	for {
+		cond.L.Lock()
+		data = append(data, itr)
+		itr++
+
+		cond.Broadcast()
+		cond.L.Unlock()
+
+		time.Sleep(time.Second)
 	}
 
-	Options := moqt.ListenerOptions{
-		ListenAddr: "0.0.0.0:5553",
-		CertPath:   CERTPATH,
-		KeyPath:    KEYPATH,
-		ALPNs:      []string{"moq-00", "h3"},
-		QuicConfig: nil,
-	}
-
-	relay := api.NewMOQTRelay(Options, []string{})
-
-	DialerOptions := moqt.DialerOptions{
-		DialAddress: "127.0.0.1:4443",
-		CertPath:    CERTPATH,
-		KeyPath:     KEYPATH,
-		ALPNs:       ALPNS,
-		QuicConfig:  nil,
-	}
-
-	dialer := moqt.MOQTDialer{
-		Options: DialerOptions,
-		Role:    wire.ROLE_RELAY,
-		Ctx:     context.TODO(),
-	}
-
-	session, err := dialer.Connect()
-
-	if err != nil {
-		log.Error().Msgf("[Error Connect][%+v]", err)
-	}
-
-	go session.ServeMOQ()
-
-	relay.Run()
 }

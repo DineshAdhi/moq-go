@@ -1,40 +1,58 @@
 package moqt
 
 import (
-	"moq-go/moqt/wire"
+	"fmt"
 	"sync"
 )
 
-type StreamsMap struct {
-	*MOQTSession
-	streams     map[uint64]*ObjectStream // SubID - ObjectStream
-	streamidmap map[string]uint64        // StreamID - SubID
-	lock        sync.RWMutex
+type ObjectStream interface {
+	GetStreamID() string
+	GetSubID() uint64
 }
 
-func NewStreamsMap(s *MOQTSession) StreamsMap {
-	return StreamsMap{
+// A simple Map util to keep ObjectStream of the ObjectStream respecitve to its streamid and subid
+type StreamsMap[T ObjectStream] struct {
+	*MOQTSession
+	streams map[uint64]T // SubID - ObjectStream
+	lock    sync.RWMutex
+}
+
+func NewStreamsMap[T ObjectStream](s *MOQTSession) StreamsMap[T] {
+	return StreamsMap[T]{
 		MOQTSession: s,
-		streams:     map[uint64]*ObjectStream{},
-		streamidmap: map[string]uint64{},
+		streams:     map[uint64]T{},
 		lock:        sync.RWMutex{},
 	}
 }
 
-func (s *StreamsMap) StreamIDGetStream(streamid string) (*ObjectStream, bool) {
+func (s *StreamsMap[T]) GetSubID(streamid string) (uint64, error) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	if subid, ok := s.streamidmap[streamid]; ok {
-		if stream, ok := s.streams[subid]; ok {
+	for subid, stream := range s.streams {
+		if stream.GetStreamID() == streamid {
+			return subid, nil
+		}
+	}
+
+	return 0, fmt.Errorf("[SubID not found]")
+}
+
+func (s *StreamsMap[T]) StreamIDGetStream(streamid string) (T, bool) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	for _, stream := range s.streams {
+		if stream.GetStreamID() == streamid {
 			return stream, true
 		}
 	}
 
-	return nil, false
+	var zero T
+	return zero, false
 }
 
-func (s *StreamsMap) SubIDGetStream(subid uint64) (*ObjectStream, bool) {
+func (s *StreamsMap[T]) SubIDGetStream(subid uint64) (T, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -42,56 +60,27 @@ func (s *StreamsMap) SubIDGetStream(subid uint64) (*ObjectStream, bool) {
 		return stream, true
 	}
 
-	return nil, false
+	var zero T
+	return zero, false
 }
 
-func (s *StreamsMap) AddStream(subid uint64, os *ObjectStream) {
+func (s *StreamsMap[T]) AddStream(subid uint64, os T) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.streamidmap[os.streamid] = subid
 	s.streams[subid] = os
 }
 
-func (s *StreamsMap) DeleteStream(os *ObjectStream) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+func (s *StreamsMap[T]) DeleteStream(streamid string) {
 
-	s.Slogger.Info().Msgf("[Deleting Stream][%s]", os.streamid)
+	if stream, ok := s.StreamIDGetStream(streamid); ok {
+		subid := stream.GetSubID()
 
-	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
-		// s.SendUnsubscribe(os.subid) do not send unsubscribe, mot-js doesn't like it.'
-	}
+		s.lock.Lock()
+		defer s.lock.Unlock()
 
-	delete(s.streamidmap, os.streamid)
-	delete(s.streams, os.subid)
+		s.Slogger.Debug().Msgf("[Deleting Stream - %s]", streamid)
 
-	if s.RemoteRole == wire.ROLE_PUBLISHER || s.RemoteRole == wire.ROLE_RELAY {
-		for _, sub := range os.subscribers {
-			sub.SubscribedStreams.DeleteStream(os)
-		}
-	}
-}
-
-func (s *StreamsMap) CreateNewStream(subid uint64, streamid string) *ObjectStream {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.streamidmap[streamid] = subid
-
-	obs := NewObjectStream(subid, streamid, s)
-	s.streams[subid] = obs
-
-	s.Slogger.Info().Msgf("[New Object Stream][%s]", streamid)
-
-	return obs
-}
-
-func (s *StreamsMap) DeleteAll() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	for _, os := range s.streams {
-		os.RemoveSubscriber(s.id)
+		delete(s.streams, subid)
 	}
 }

@@ -3,26 +3,41 @@ package main
 import (
 	"flag"
 	"fmt"
-	moqt "moq-go/moqt"
-	"moq-go/moqt/api"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
+	"github.com/DineshAdhi/moq-go/moqt"
+
+	"github.com/DineshAdhi/moq-go/moqt/api"
+
+	"net/http"
+	_ "net/http/pprof"
+
+	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
-const LISTENADDR = "0.0.0.0:4443"
+const PORT = 4443
 
 var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 
 func main() {
+	// defer profile.Start(profile.ProfilePath("."), profile.GoroutineProfile, profile.MemProfileHeap, profile.CPUProfile).Stop()
+
+	go func() {
+		http.ListenAndServe(":8080", nil)
+	}()
+
+	ENVCERTPATH := os.Getenv("MOQT_CERT_PATH")
+	ENVKEYPATH := os.Getenv("MOQT_KEY_PATH")
 
 	debug := flag.Bool("debug", false, "sets log level to debug")
-	port := flag.Int("port", 4443, "Listening Port")
-	KEYPATH := flag.String("keypath", "../certs/localhost.key", "Keypath")
-	CERTPATH := flag.String("certpath", "../certs/localhost.crt", "CertPath")
+	port := flag.Int("port", PORT, "Listening Port")
+	KEYPATH := flag.String("keypath", ENVKEYPATH, "Keypath")
+	CERTPATH := flag.String("certpath", ENVCERTPATH, "CertPath")
 	flag.Parse()
 
 	LISTENADDR := fmt.Sprintf("0.0.0.0:%d", *port)
@@ -31,11 +46,15 @@ func main() {
 		return filepath.Base(file) + ":" + strconv.Itoa(line)
 	}
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.StampMilli}).With().Caller().Logger()
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	if *debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
+
+	quicConfig := &quic.Config{
+		EnableDatagrams: true,
 	}
 
 	Options := moqt.ListenerOptions{
@@ -43,7 +62,7 @@ func main() {
 		CertPath:   *CERTPATH,
 		KeyPath:    *KEYPATH,
 		ALPNs:      ALPNS,
-		QuicConfig: nil,
+		QuicConfig: quicConfig,
 	}
 
 	peers := []string{} // TODO : Address of the Relay Peers for Fan out Implementation
