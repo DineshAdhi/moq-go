@@ -44,7 +44,8 @@ func main() {
 	Options := moqt.DialerOptions{
 		ALPNs: ALPNS,
 		QuicConfig: &quic.Config{
-			EnableDatagrams: true,
+			EnableDatagrams:       true,
+			MaxIncomingUniStreams: 1000,
 		},
 	}
 
@@ -72,16 +73,16 @@ func handleStream(stream *moqt.PubStream) {
 	groupid := uint64(0)
 
 	for {
-		gs, err := stream.NewGroup(groupid)
+		gs, wg, err := stream.NewGroup(groupid)
 
 		if err != nil {
-			log.Error().Msgf("Err - %s", err)
+			log.Error().Msgf("[Error opening new stream for %d] [%s]", groupid, err)
 			return
 		}
 
 		objectid := uint64(0)
 
-		for range 10 {
+		for range 5 {
 			gs.WriteObject(&wire.Object{
 				GroupID: groupid,
 				ID:      objectid,
@@ -91,9 +92,10 @@ func handleStream(stream *moqt.PubStream) {
 		}
 
 		gs.Close()
+		wg.Wait()
+
+		<-time.After(time.Millisecond * 1)
 
 		groupid++
-
-		<-time.After(time.Millisecond * 50)
 	}
 }

@@ -29,7 +29,6 @@ func (sub SubStream) GetSubID() uint64 {
 }
 
 func (sub *SubStream) AcceptStream(stream wire.MOQTStream) {
-	stream.WgDone()
 }
 
 func (sub *SubStream) ProcessObjects(stream wire.MOQTStream, reader quicvarint.Reader) {

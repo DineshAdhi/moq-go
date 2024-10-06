@@ -4,6 +4,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"strings"
+	"time"
 
 	"github.com/DineshAdhi/moq-go/moqt/wire"
 
@@ -81,24 +82,27 @@ func (sub *RelayHandler) ProcessMOQTStream(stream wire.MOQTStream) {
 
 	if err != nil {
 		sub.Slogger.Error().Msgf("[Unable to find SubscribedStreams for StreamID - %s]", streamid)
-		stream.WgDone()
 		return
 	}
 
 	unistream, err := sub.Conn.OpenUniStream()
 
 	if err != nil {
-		stream.WgDone()
 		return
 	}
 
 	unistream.Write(stream.GetHeaderSubIDBytes(subid))
-	stream.WgDone()
 
 	itr := 0
 
 	for {
+		olditr := itr
+
 		itr, err = stream.Pipe(itr, unistream)
+
+		if olditr == itr {
+			<-time.After(time.Microsecond * 500)
+		}
 
 		if err == io.EOF {
 			break

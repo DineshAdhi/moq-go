@@ -16,7 +16,7 @@ type GroupStream struct {
 	GroupID    uint64
 	SendOrder  uint64
 	ObjectsArr []*Object
-	ObjectLock sync.Mutex
+	ObjectLock sync.RWMutex
 	ObjectCond *sync.Cond
 	IsEOF      bool
 	wg         *sync.WaitGroup
@@ -30,8 +30,7 @@ func NewGroupStream(subid uint64, grouid uint64, alias uint64) *GroupStream {
 	gs.TrackAlias = alias
 	gs.SendOrder = 0
 	gs.GroupID = grouid
-	gs.ObjectLock = sync.Mutex{}
-	gs.ObjectCond = sync.NewCond(&gs.ObjectLock)
+	gs.ObjectLock = sync.RWMutex{}
 	gs.IsEOF = false
 	gs.wg = &sync.WaitGroup{}
 	gs.ObjectsArr = make([]*Object, 0)
@@ -42,8 +41,7 @@ func NewGroupStream(subid uint64, grouid uint64, alias uint64) *GroupStream {
 func (gs *GroupStream) Parse(subid uint64, reader quicvarint.Reader) error {
 
 	gs.SubID = subid
-	gs.ObjectLock = sync.Mutex{}
-	gs.ObjectCond = sync.NewCond(&gs.ObjectLock)
+	gs.ObjectLock = sync.RWMutex{}
 	gs.IsEOF = false
 	gs.wg = &sync.WaitGroup{}
 	gs.ObjectsArr = make([]*Object, 0)
@@ -64,18 +62,6 @@ func (gs *GroupStream) Parse(subid uint64, reader quicvarint.Reader) error {
 	}
 
 	return nil
-}
-
-func (gs *GroupStream) WgAdd() {
-	gs.wg.Add(1)
-}
-
-func (gs *GroupStream) WgWait() {
-	gs.wg.Wait()
-}
-
-func (gs *GroupStream) WgDone() {
-	gs.wg.Done()
 }
 
 func (gs *GroupStream) SetStreamID(streamid string) {
@@ -116,8 +102,7 @@ func (gs *GroupStream) GetHeaderSubIDBytes(subid uint64) []byte {
 
 func (gs *GroupStream) Pipe(index int, stream quic.SendStream) (int, error) {
 
-	gs.ObjectCond.L.Lock()
-	gs.ObjectCond.Wait()
+	gs.ObjectLock.RLock()
 
 	length := len(gs.ObjectsArr)
 
@@ -129,7 +114,7 @@ func (gs *GroupStream) Pipe(index int, stream quic.SendStream) (int, error) {
 		index++
 	}
 
-	gs.ObjectCond.L.Unlock()
+	gs.ObjectLock.RUnlock()
 
 	if _, err := stream.Write(data); err != nil {
 		return index, err
@@ -160,24 +145,21 @@ func (gs *GroupStream) ReadObject() (uint64, *Object, error) {
 		return 0, nil, err
 	}
 
-	gs.ObjectCond.L.Lock()
+	gs.ObjectLock.Lock()
 	gs.ObjectsArr = append(gs.ObjectsArr, object)
-	gs.ObjectCond.Broadcast()
-	gs.ObjectCond.L.Unlock()
+	gs.ObjectLock.Unlock()
 
 	return gs.GroupID, object, nil
 }
 
 func (gs *GroupStream) WriteObject(object *Object) {
-	gs.ObjectCond.L.Lock()
+	gs.ObjectLock.Lock()
 	gs.ObjectsArr = append(gs.ObjectsArr, object)
-	gs.ObjectCond.Broadcast()
-	gs.ObjectCond.L.Unlock()
+	gs.ObjectLock.Unlock()
 }
 
 func (gs *GroupStream) Close() {
-	gs.ObjectCond.L.Lock()
+	gs.ObjectLock.Lock()
 	gs.IsEOF = true
-	gs.ObjectCond.Broadcast()
-	gs.ObjectCond.L.Unlock()
+	gs.ObjectLock.Unlock()
 }

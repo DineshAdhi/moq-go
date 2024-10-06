@@ -12,8 +12,6 @@ import (
 
 	"github.com/DineshAdhi/moq-go/moqt/api"
 
-	"net/http"
-	_ "net/http/pprof"
 
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
@@ -26,10 +24,6 @@ var ALPNS = []string{"h3", "moq-00"} // Application Layer Protocols ["H3" - WebT
 
 func main() {
 	// defer profile.Start(profile.ProfilePath("."), profile.GoroutineProfile, profile.MemProfileHeap, profile.CPUProfile).Stop()
-
-	go func() {
-		http.ListenAndServe(":8080", nil)
-	}()
 
 	ENVCERTPATH := os.Getenv("MOQT_CERT_PATH")
 	ENVKEYPATH := os.Getenv("MOQT_KEY_PATH")

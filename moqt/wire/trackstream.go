@@ -15,8 +15,7 @@ type TrackStream struct {
 	TrackAlias uint64
 	SendOrder  uint64
 	ObjectsArr []*Object
-	ObjectLock sync.Mutex
-	ObjectCond sync.Cond
+	ObjectLock sync.RWMutex
 	IsEOF      bool
 	wg         *sync.WaitGroup
 	reader     quicvarint.Reader
@@ -27,11 +26,8 @@ func NewTrackStream(subid uint64, alias uint64) *TrackStream {
 	ts := &TrackStream{}
 	ts.SubID = subid
 	ts.IsEOF = false
-	ts.ObjectLock = sync.Mutex{}
-	ts.ObjectCond = *sync.NewCond(&ts.ObjectLock)
+	ts.ObjectLock = sync.RWMutex{}
 	ts.wg = &sync.WaitGroup{}
-
-	// log.Info().Msgf("[New MOQT Stream][Stream ID - %s]", streamid)
 
 	return ts
 }
@@ -40,8 +36,7 @@ func (ts *TrackStream) Parse(subid uint64, reader quicvarint.Reader) error {
 
 	ts.SubID = subid
 	ts.IsEOF = false
-	ts.ObjectLock = sync.Mutex{}
-	ts.ObjectCond = *sync.NewCond(&ts.ObjectLock)
+	ts.ObjectLock = sync.RWMutex{}
 	ts.wg = &sync.WaitGroup{}
 	ts.reader = reader
 
@@ -56,18 +51,6 @@ func (ts *TrackStream) Parse(subid uint64, reader quicvarint.Reader) error {
 	}
 
 	return nil
-}
-
-func (ts *TrackStream) WgAdd() {
-	ts.wg.Add(1)
-}
-
-func (ts *TrackStream) WgWait() {
-	ts.wg.Wait()
-}
-
-func (ts *TrackStream) WgDone() {
-	ts.wg.Done()
 }
 
 func (ts *TrackStream) SetStreamID(streamid string) {
@@ -107,8 +90,7 @@ func (ts *TrackStream) GetHeaderSubIDBytes(subid uint64) []byte {
 }
 
 func (ts *TrackStream) Pipe(index int, stream quic.SendStream) (int, error) {
-	ts.ObjectCond.L.Lock()
-	ts.ObjectCond.Wait()
+	ts.ObjectLock.RLock()
 
 	length := len(ts.ObjectsArr)
 
@@ -121,7 +103,7 @@ func (ts *TrackStream) Pipe(index int, stream quic.SendStream) (int, error) {
 		index++
 	}
 
-	ts.ObjectCond.L.Unlock()
+	ts.ObjectLock.RUnlock()
 
 	if _, err := stream.Write(data); err != nil {
 		return index, err
@@ -165,24 +147,21 @@ func (ts *TrackStream) ReadObject() (uint64, *Object, error) {
 
 	object.GroupID = groupid
 
-	ts.ObjectCond.L.Lock()
+	ts.ObjectLock.Lock()
 	ts.ObjectsArr = append(ts.ObjectsArr, object)
-	ts.ObjectCond.Broadcast()
-	ts.ObjectCond.L.Unlock()
+	ts.ObjectLock.Unlock()
 
 	return groupid, object, nil
 }
 
 func (ts *TrackStream) WriteObject(object *Object) {
-	ts.ObjectCond.L.Lock()
+	ts.ObjectLock.Lock()
 	ts.ObjectsArr = append(ts.ObjectsArr, object)
-	ts.ObjectCond.Broadcast()
-	ts.ObjectCond.L.Unlock()
+	ts.ObjectLock.Unlock()
 }
 
 func (ts *TrackStream) Close() {
-	ts.ObjectCond.L.Lock()
+	ts.ObjectLock.Lock()
 	ts.IsEOF = true
-	ts.ObjectCond.Broadcast()
-	ts.ObjectCond.L.Unlock()
+	ts.ObjectLock.Unlock()
 }

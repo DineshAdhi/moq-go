@@ -68,16 +68,12 @@ func (rs *RelayStream) ForwardStream(stream wire.MOQTStream) {
 	defer rs.SubscribersLock.RUnlock()
 
 	for _, sub := range rs.Subscribers {
-		stream.WgAdd()
 		go sub.ProcessMOQTStream(stream)
 	}
-
-	stream.WgWait() // Wait till all the subcribers are ready to read the Objects.
 }
 
 func (rs *RelayStream) ProcessObjects(stream wire.MOQTStream, reader quicvarint.Reader) {
 
-	// Forwarding Streams to all Subscribers. Wait for all subscribers to write the Stream Header in CS and then start reading the Objects.
 	rs.ForwardStream(stream)
 
 	for {

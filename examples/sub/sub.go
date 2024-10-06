@@ -55,7 +55,7 @@ func main() {
 	})
 
 	sub.OnAnnounce(func(ns string) {
-		handler.Subscribe(ns, "dumeel", 0)
+		// handler.Subscribe(ns, "dumeel", 0)
 	})
 
 	if err != nil {
@@ -70,10 +70,10 @@ func main() {
 
 func handleStream(ss *moqt.SubStream) {
 
-	log.Debug().Msgf("New Stream Header")
+	// log.Debug().Msgf("New Stream Header")
 
 	for moqtstream := range ss.StreamsChan {
-		log.Debug().Msgf("New Group Stream - %s", moqtstream.GetStreamID())
+		// log.Debug().Msgf("New Group Stream - %s", moqtstream.GetStreamID())
 		go handleMOQStream(moqtstream)
 	}
 }
@@ -92,10 +92,6 @@ func handleMOQStream(stream wire.MOQTStream) {
 			break
 		}
 
-		msg := string(object.Payload[:])
-		log.Printf("Payload - %d %s - %d", groupid, msg, object.ID)
+		log.Printf("Got an Object : gid - %d id - %d", groupid, object.ID)
 	}
-
-	log.Printf("Group Ended")
-
 }
