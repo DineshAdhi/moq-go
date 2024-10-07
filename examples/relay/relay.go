@@ -12,7 +12,6 @@ import (
 
 	"github.com/DineshAdhi/moq-go/moqt/api"
 
-
 	"github.com/quic-go/quic-go"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"

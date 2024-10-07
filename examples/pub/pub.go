@@ -73,7 +73,7 @@ func handleStream(stream *moqt.PubStream) {
 	groupid := uint64(0)
 
 	for {
-		gs, wg, err := stream.NewGroup(groupid)
+		gs, err := stream.NewGroup(groupid)
 
 		if err != nil {
 			log.Error().Msgf("[Error opening new stream for %d] [%s]", groupid, err)
@@ -92,7 +92,6 @@ func handleStream(stream *moqt.PubStream) {
 		}
 
 		gs.Close()
-		wg.Wait()
 
 		<-time.After(time.Millisecond * 1)
 
