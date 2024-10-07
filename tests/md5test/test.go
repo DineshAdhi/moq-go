@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	mrand "math/rand"
+	"time"
 
 	"github.com/DineshAdhi/moq-go/moqt"
 	"github.com/DineshAdhi/moq-go/moqt/api"
@@ -129,7 +130,7 @@ func handlePS(ps moqt.PubStream) {
 
 		gs.Close()
 
-		// <-time.After(time.Millisecond * 1)
+		<-time.After(time.Millisecond * 1)
 	}
 }
 

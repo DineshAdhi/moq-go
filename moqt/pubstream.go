@@ -2,7 +2,6 @@ package moqt
 
 import (
 	"io"
-	"sync"
 
 	"github.com/DineshAdhi/moq-go/moqt/wire"
 )
@@ -39,35 +38,31 @@ func (pub *PubStream) Accept() {
 	pub.session.CS.WriteControlMessage(&okmsg)
 }
 
-func (pub *PubStream) NewGroup(id uint64) (wire.MOQTStream, *sync.WaitGroup, error) {
+func (pub *PubStream) NewGroup(id uint64) (wire.MOQTStream, error) {
 	stream := wire.NewGroupStream(pub.SubID, id, pub.Alias)
 	return pub.NewStream(stream)
 }
 
-func (pub *PubStream) NewTrack() (wire.MOQTStream, *sync.WaitGroup, error) {
+func (pub *PubStream) NewTrack() (wire.MOQTStream, error) {
 	stream := wire.NewTrackStream(pub.SubID, pub.Alias)
 	return pub.NewStream(stream)
 }
 
-func (pub *PubStream) NewStream(stream wire.MOQTStream) (wire.MOQTStream, *sync.WaitGroup, error) {
-
-	wg := &sync.WaitGroup{}
+func (pub *PubStream) NewStream(stream wire.MOQTStream) (wire.MOQTStream, error) {
 
 	unistream, err := pub.session.Conn.OpenUniStream()
 
 	if err != nil {
-		return stream, wg, err
+		return stream, err
 	}
-
-	wg.Add(1)
 
 	_, err = unistream.Write(stream.GetHeaderBytes())
 
 	if err != nil {
-		return stream, wg, err
+		return stream, err
 	}
 
-	go func(wg *sync.WaitGroup) {
+	go func() {
 		itr := 0
 
 		for {
@@ -83,10 +78,9 @@ func (pub *PubStream) NewStream(stream wire.MOQTStream) (wire.MOQTStream, *sync.
 		}
 
 		unistream.Close()
-		wg.Done()
-	}(wg)
+	}()
 
-	return stream, wg, nil
+	return stream, nil
 }
 
 func (pub PubStream) GetStreamID() string {
