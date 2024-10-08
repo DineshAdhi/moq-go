@@ -106,6 +106,11 @@ func (gs *GroupStream) Pipe(index int, stream quic.SendStream) (int, error) {
 
 	length := len(gs.ObjectsArr)
 
+	if index == length && gs.IsEOF == true {
+		gs.ObjectLock.RUnlock()
+		return index, io.EOF
+	}
+
 	var data []byte
 
 	for index < length {
@@ -118,10 +123,6 @@ func (gs *GroupStream) Pipe(index int, stream quic.SendStream) (int, error) {
 
 	if _, err := stream.Write(data); err != nil {
 		return index, err
-	}
-
-	if gs.IsEOF == true {
-		return index, io.EOF
 	}
 
 	return index, nil
