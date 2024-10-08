@@ -1,8 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"flag"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,31 +17,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const PORT = 4443
-
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 const RELAY = "localhost:4443"
-
-func ReadFromStdin() chan []byte {
-
-	datachannel := make(chan []byte)
-
-	go func() {
-		reader := bufio.NewReader(os.Stdin)
-		for {
-			var data [2048]byte
-			n, err := reader.Read(data[:])
-
-			if err != nil {
-				break
-			}
-
-			datachannel <- data[:n]
-		}
-	}()
-
-	return datachannel
-}
 
 func main() {
 
@@ -61,58 +39,59 @@ func main() {
 	Options := moqt.DialerOptions{
 		ALPNs: ALPNS,
 		QuicConfig: &quic.Config{
-			EnableDatagrams:       true,
-			MaxIncomingUniStreams: 1000,
+			EnableDatagrams: true,
 		},
 	}
 
-	pub := api.NewMOQPub(Options, RELAY)
-	handler, err := pub.Connect()
+	sub := api.NewMOQSub(Options, RELAY)
 
-	pub.OnSubscribe(func(ps moqt.PubStream) {
-		go handleStream(&ps)
+	handler, err := sub.Connect()
+
+	sub.OnStream(func(ss moqt.SubStream) {
+		go handleStream(&ss)
+	})
+
+	sub.OnAnnounce(func(ns string) {
+		// handler.Subscribe(ns, "teststream", 0)
 	})
 
 	if err != nil {
-		log.Error().Msgf("error - %s", err)
+		log.Error().Msgf("Error - %s", err)
 		return
 	}
 
-	handler.SendAnnounce("ffmpegtest")
+	handler.Subscribe("ffmpegtest", "teststream", 0)
 
-	<-pub.Ctx.Done()
+	<-sub.Ctx.Done()
 }
 
-func handleStream(stream *moqt.PubStream) {
-	stream.Accept()
+func handleStream(ss *moqt.SubStream) {
 
-	ch := ReadFromStdin()
+	for moqtstream := range ss.StreamsChan {
+		go handleMOQStream(moqtstream)
+	}
+}
 
-	groupid := uint64(0)
-	objid := uint64(0)
+func handleMOQStream(stream wire.MOQTStream) {
+
+	conn, err := net.Dial("udp", "127.0.0.1:4000")
+
+	if err != nil {
+		panic(err)
+	}
 
 	for {
-		gs, err := stream.NewGroup(groupid)
+		_, object, err := stream.ReadObject()
 
-		if err != nil {
-			log.Error().Msgf("%s", err)
+		if err == io.EOF {
 			break
 		}
 
-		for range 1000 {
-			data := <-ch
-
-			obj := &wire.Object{
-				ID:      objid,
-				Payload: data,
-			}
-
-			gs.WriteObject(obj)
-			objid++
+		if err != nil {
+			log.Error().Msgf("Error Reading Objects - %s", err)
+			break
 		}
 
-		gs.Close()
-
-		groupid++
+		conn.Write(object.Payload)
 	}
 }

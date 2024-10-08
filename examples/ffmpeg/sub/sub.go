@@ -17,7 +17,7 @@ import (
 )
 
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
-const RELAY = "127.0.0.1:4443"
+const RELAY = "localhost:4443"
 
 func main() {
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,10 +21,6 @@ var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTranspo
 const RELAY = "127.0.0.1:4443"
 
 func main() {
-
-	go func() {
-		http.ListenAndServe(":8080", nil)
-	}()
 
 	debug := flag.Bool("debug", false, "sets log level to debug")
 	flag.Parse()

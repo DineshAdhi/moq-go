@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"flag"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,17 +28,24 @@ func ReadFromStdin() chan []byte {
 	datachannel := make(chan []byte)
 
 	go func() {
-		reader := bufio.NewReader(os.Stdin)
+		listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: 3000})
+		if err != nil {
+			panic(err)
+		}
+
+		reader := bufio.NewReader(listener)
+
 		for {
-			var data [2048]byte
-			n, err := reader.Read(data[:])
+			data := make([]byte, 1316)
+			_, err := io.ReadFull(reader, data)
 
 			if err != nil {
-				break
+				panic(err)
 			}
 
-			datachannel <- data[:n]
+			datachannel <- data
 		}
+
 	}()
 
 	return datachannel
@@ -99,7 +108,7 @@ func handleStream(stream *moqt.PubStream) {
 			break
 		}
 
-		for range 1000 {
+		for range 250 {
 			data := <-ch
 
 			obj := &wire.Object{
