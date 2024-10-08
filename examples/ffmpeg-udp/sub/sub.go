@@ -20,6 +20,8 @@ import (
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 const RELAY = "localhost:4443"
 
+var GROUPID uint64 = 0
+
 func main() {
 
 	debug := flag.Bool("debug", false, "sets log level to debug")
@@ -68,11 +70,13 @@ func main() {
 func handleStream(ss *moqt.SubStream) {
 
 	for moqtstream := range ss.StreamsChan {
-		go handleMOQStream(moqtstream)
+		handleMOQStream(moqtstream)
 	}
 }
 
 func handleMOQStream(stream wire.MOQTStream) {
+
+	gs := stream.(*wire.GroupStream)
 
 	conn, err := net.Dial("udp", "127.0.0.1:4000")
 
@@ -94,4 +98,11 @@ func handleMOQStream(stream wire.MOQTStream) {
 
 		conn.Write(object.Payload)
 	}
+
+	if GROUPID != gs.GroupID {
+		log.Error().Msgf("Received Wrong GroupID - Expected %d, Got - %d", GROUPID, gs.GroupID)
+		GROUPID = gs.GroupID
+	}
+
+	GROUPID++
 }

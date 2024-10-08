@@ -19,6 +19,8 @@ import (
 var ALPNS = []string{"moq-00"} // Application Layer Protocols ["H3" - WebTransport]
 const RELAY = "127.0.0.1:4443"
 
+var GROUPID uint64 = 0
+
 func main() {
 
 	debug := flag.Bool("debug", false, "sets log level to debug")
@@ -65,29 +67,45 @@ func main() {
 }
 
 func handleStream(ss *moqt.SubStream) {
-
-	// log.Debug().Msgf("New Stream Header")
-
 	for moqtstream := range ss.StreamsChan {
-		// log.Debug().Msgf("New Group Stream - %s", moqtstream.GetStreamID())
-		go handleMOQStream(moqtstream)
+		handleMOQStream(moqtstream)
 	}
 }
 
 func handleMOQStream(stream wire.MOQTStream) {
 
+	gs := stream.(*wire.GroupStream)
+
+	objectcount := 0
+	var arr []uint64
+
 	for {
-		groupid, object, err := stream.ReadObject()
+		_, object, err := stream.ReadObject()
 
 		if err == io.EOF {
 			break
 		}
+
+		objectcount++
 
 		if err != nil {
 			log.Error().Msgf("Error Reading Objects - %s", err)
 			break
 		}
 
-		log.Printf("Got an Object : gid - %d id - %d", groupid, object.ID)
+		arr = append(arr, object.ID)
+	}
+
+	if GROUPID != gs.GroupID {
+		log.Error().Msgf("Received Wrong GroupID - Expected %d, Got - %d", GROUPID, gs.GroupID)
+		GROUPID = gs.GroupID
+	}
+
+	GROUPID++
+
+	if objectcount != 10 {
+		log.Error().Msgf("Incomplete Group : %d %+v", gs.GroupID, arr)
+	} else {
+		// log.Info().Msgf("New Group [%d] - %+v", gs.GroupID, arr)
 	}
 }

@@ -77,7 +77,7 @@ func handleStream(stream *moqt.PubStream) {
 
 		objectid := uint64(0)
 
-		for range 5 {
+		for range 10 {
 			gs.WriteObject(&wire.Object{
 				GroupID: groupid,
 				ID:      objectid,
