@@ -28,7 +28,7 @@ func ReadFromStdin() chan []byte {
 	go func() {
 		reader := bufio.NewReader(os.Stdin)
 		for {
-			var data [2048]byte
+			var data [1024]byte
 			n, err := reader.Read(data[:])
 
 			if err != nil {
@@ -99,7 +99,7 @@ func handleStream(stream *moqt.PubStream) {
 			break
 		}
 
-		for range 1000 {
+		for range 10 {
 			data := <-ch
 
 			obj := &wire.Object{
