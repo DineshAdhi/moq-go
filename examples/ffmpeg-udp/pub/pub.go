@@ -108,7 +108,7 @@ func handleStream(stream *moqt.PubStream) {
 			break
 		}
 
-		for range 100 {
+		for range 7 {
 			data := <-ch
 
 			obj := &wire.Object{

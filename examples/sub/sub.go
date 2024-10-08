@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 
@@ -67,8 +68,42 @@ func main() {
 }
 
 func handleStream(ss *moqt.SubStream) {
+
+	gsMap := make(map[uint64]*wire.GroupStream)
+
 	for moqtstream := range ss.StreamsChan {
-		handleMOQStream(moqtstream)
+		gs := moqtstream.(*wire.GroupStream)
+		gsMap[gs.GroupID] = gs
+
+		if len(gsMap) >= 25 {
+
+			keys := make([]uint64, 0, len(gsMap))
+			for k := range gsMap {
+				keys = append(keys, k)
+			}
+
+			sort.Slice(keys, func(i, j int) bool {
+				return keys[i] < keys[j]
+			})
+
+			log.Info().Msgf("Group ID Order %+v", keys)
+
+			oldkey := -1
+
+			for _, key := range keys {
+
+				if oldkey == -1 {
+					oldkey = int(key)
+				} else if oldkey != int(key) {
+					break
+				}
+
+				handleMOQStream(gsMap[key])
+				delete(gsMap, key)
+
+				oldkey++
+			}
+		}
 	}
 }
 
